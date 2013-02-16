@@ -223,30 +223,12 @@ protected:
 			}
 		}
 	}
-	
-	inline byte serialAvailable()
-	{
-		return Serial.available();
-	}
-	
-	inline char serialRead()
-	{
-			// Need a blocking read, but Serial.Read() doesn't block.
-			// Serial.readBytes(buf, num) blocks, so use it, even though
-			// we're reading only one byte.
-		char buf[1];
-		char rc = Serial.readBytes(buf, 1);
-		if (rc > 0)
-			return buf[0];
-		return -1;
-	}
-	
-	inline char serialWrite(char val)
-	{
-		return Serial.write(val);
-	}
-	
+
 	// Declare resources
+		// Change this if you want host communications to use something
+		// else (eg. Serial1, Serial2, a Bluetooth shield or whatever)
+	DECLARE_SERIAL_STREAM(Serial)
+	
 	DEFINE_STACK(int, 32)
 	DEFINE_STACK(int, 4)
 	DECLARE_STACK(int, 32, _stack)
