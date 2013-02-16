@@ -41,7 +41,9 @@
 #include "AnalogOutput.hpp"
 #include "../Motor/Motor.h"
 #include "../MotorShield/MotorShield.h"
+#include "SerialStream.h"
 #include <Serial.h>
+
 
 //------------------------------------------------------------------------------
 // This is intended to simplify the manipulation of two-byte numbers.
