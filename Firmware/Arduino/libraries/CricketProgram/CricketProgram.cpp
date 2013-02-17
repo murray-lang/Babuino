@@ -720,6 +720,9 @@ CricketProgram::code_exec()
 			case OP_LEDOFF:
 				userLed(false);
 				break;
+				
+			case 90:	// This comes after every motor command for some reason.
+				break;	// Want to catch it so we don't get the default beep.
 
 			default:
 					// I think Procedure Call should go here?
