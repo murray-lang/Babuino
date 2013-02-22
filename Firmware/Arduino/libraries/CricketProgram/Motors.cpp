@@ -2,36 +2,35 @@
 // This software was written for the Babuino Project
 // Author: Murray Lang
 // 
-// This code is designed to drive a MotorShield shield, and will probably work
-// with the Ardumotor shield since that uses the same pins. Only two motors are
-// currently supported, because thats all those shields have. It would be 
-// trivial to add mor motors though.
+// This code is designed to drive a collection of motors. Originally written to
+// the MotorShield shield (and therfore the Ardumoto), it now supports a lower-
+// level interface to an H_Bridge driver as used by the Babuino board.
 // 
 // All rights in accordance with the Babuino Project. 
 //------------------------------------------------------------------------------
-#include "MotorShield.h"
+#include "Motors.hpp"
 
 
-MotorShield::MotorShield()
+Motors::Motors()
 {
-	MotorShield(false, false);
+	Motors(false, false);
 }
 
-MotorShield::MotorShield(bool reverseA, bool reverseB)
+Motors::Motors(bool reverseA, bool reverseB)
 {
 	_motorA.reversePolarity(reverseA, false);
 	_motorB.reversePolarity(reverseB, false);
 }
 
 void 
-MotorShield::setup()
+Motors::setup()
 {
 	_motorA.setup();
 	_motorB.setup();
 }
 
 void      
-MotorShield::setPower(enum MotorShield::Selected selected, byte power)
+Motors::setPower(enum Motors::Selected selected, byte power)
 {
 	if ((selected & MOTOR_A) != 0)
 	{
@@ -45,7 +44,7 @@ MotorShield::setPower(enum MotorShield::Selected selected, byte power)
 }
 
 byte      
-MotorShield::getPower(enum MotorShield::Selected selected)
+Motors::getPower(enum Motors::Selected selected)
 {
 	if ((selected & MOTOR_A) != 0)
 		return _motorA.getPower();
@@ -56,7 +55,7 @@ MotorShield::getPower(enum MotorShield::Selected selected)
 }
 
 void      
-MotorShield::setDirection(enum MotorShield::Selected selected, enum MotorBase::eDirection dir)
+Motors::setDirection(enum Motors::Selected selected, enum MotorBase::eDirection dir)
 {
 	if ((selected & MOTOR_A) != 0)
 		_motorA.setDirection(dir);
@@ -66,7 +65,7 @@ MotorShield::setDirection(enum MotorShield::Selected selected, enum MotorBase::e
 }
 
 MotorBase::eDirection
-MotorShield::getDirection(enum MotorShield::Selected selected)
+Motors::getDirection(enum Motors::Selected selected)
 {
 	if ((selected & MOTOR_A) != 0)
 		return _motorA.getDirection();
@@ -75,7 +74,7 @@ MotorShield::getDirection(enum MotorShield::Selected selected)
 }
 
 void      
-MotorShield::reverseDirection(enum MotorShield::Selected selected)
+Motors::reverseDirection(enum Motors::Selected selected)
 {
 	if ((selected & MOTOR_A) != 0)
 		_motorA.reverseDirection();
@@ -85,7 +84,7 @@ MotorShield::reverseDirection(enum MotorShield::Selected selected)
 }
 
 void      
-MotorShield::setBrake(enum MotorShield::Selected selected, enum MotorBase::eBrake brake)
+Motors::setBrake(enum Motors::Selected selected, enum MotorBase::eBrake brake)
 {
 	if ((selected & MOTOR_A) != 0)
 		_motorA.setBrake(brake);
@@ -95,7 +94,7 @@ MotorShield::setBrake(enum MotorShield::Selected selected, enum MotorBase::eBrak
 }
 
 MotorBase::eBrake
-MotorShield::getBrake(enum MotorShield::Selected selected)
+Motors::getBrake(enum Motors::Selected selected)
 {
 	if ((selected & MOTOR_A) != 0)
 		return _motorA.getBrake();
@@ -104,7 +103,7 @@ MotorShield::getBrake(enum MotorShield::Selected selected)
 }
 
 void      
-MotorShield::on(enum MotorShield::Selected selected)
+Motors::on(enum Motors::Selected selected)
 {
 	if ((selected & MOTOR_A) != 0)
 	{
@@ -118,7 +117,7 @@ MotorShield::on(enum MotorShield::Selected selected)
 }
 
 void      
-MotorShield::off(enum MotorShield::Selected selected)
+Motors::off(enum Motors::Selected selected)
 {
 	if ((selected & MOTOR_A) != 0)
 	{
@@ -132,7 +131,7 @@ MotorShield::off(enum MotorShield::Selected selected)
 }
 
 void      
-MotorShield::off()
+Motors::off()
 {
 	_motorA.off();
 	_motorB.off();

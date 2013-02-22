@@ -546,31 +546,31 @@ CricketProgram::code_exec()
 
 */
 			case OP_SEL_A:
-				_selectedMotors = MotorShield::MOTOR_A;
+				_selectedMotors = Motors::MOTOR_A;
 				break;
 			case OP_SEL_B:
-				_selectedMotors = MotorShield::MOTOR_B;
+				_selectedMotors = Motors::MOTOR_B;
 				break;
 			case OP_SEL_AB:
-				_selectedMotors = MotorShield::MOTOR_AB;
+				_selectedMotors = Motors::MOTOR_AB;
 				break;
 
 
 			case OP_THISWAY:
 				temp1 = _stack.pop();	// Motor selection
-				_motors.setDirection((MotorShield::Selected)(temp1), MotorBase::THIS_WAY);
+				_motors.setDirection((Motors::Selected)(temp1), MotorBase::THIS_WAY);
 				break;
 
 
 			case OP_THATWAY:
 				temp1 = _stack.pop();	// Motor selection
-				_motors.setDirection((MotorShield::Selected)(temp1), MotorBase::THAT_WAY);
+				_motors.setDirection((Motors::Selected)(temp1), MotorBase::THAT_WAY);
 
 				break;
 
 			case OP_RD:
 				temp1 = _stack.pop();	// Motor selection
-				_motors.reverseDirection((MotorShield::Selected)(temp1));
+				_motors.reverseDirection((Motors::Selected)(temp1));
 				break;
 				
 			case OP_SETPOWER:
@@ -578,30 +578,30 @@ CricketProgram::code_exec()
 				temp2 = _stack.pop(); 
 				if (temp2 > 7)	
 					temp2 = 7;
-				_motors.setPower((MotorShield::Selected)(temp1), (byte)temp2);
+				_motors.setPower((Motors::Selected)(temp1), (byte)temp2);
 				break;
 
 
 			case OP_BRAKE:
 				temp1 = _stack.pop();	// Motor selection
-				_motors.setBrake((MotorShield::Selected)(temp1), MotorBase::BRAKE_ON);
+				_motors.setBrake((Motors::Selected)(temp1), MotorBase::BRAKE_ON);
 				break;
 
 			case OP_ON:
 				temp1 = _stack.pop();	// Motor selection
-				_motors.on((MotorShield::Selected)(temp1));
+				_motors.on((Motors::Selected)(temp1));
 				break;
 
 			case OP_ONFOR:
 				temp1 = _stack.pop();	// Motor selection
-				_motors.on((MotorShield::Selected)(temp1));
+				_motors.on((Motors::Selected)(temp1));
 				delay(100*_stack.pop());
-				_motors.off((MotorShield::Selected)(temp1));
+				_motors.off((Motors::Selected)(temp1));
 				break;
 
 			case OP_OFF:
 				temp1 = _stack.pop();	// Motor selection
-				_motors.off((MotorShield::Selected)(temp1));
+				_motors.off((Motors::Selected)(temp1));
 				break;
 			
 /* Only two motors supported at present unfortunately

@@ -32,16 +32,16 @@
 //------------------------------------------------------------------------------
 
 #include <Arduino.h>
-#include <pins_arduino.h> 
-#include "Program.h"
+//#include <pins_arduino.h> 
+#include "Program.hpp"
 #include "Stack.hpp"
 #include "DigitalInput.hpp"
 #include "DigitalOutput.hpp"
 #include "AnalogInput.hpp"
 #include "AnalogOutput.hpp"
-#include "../Motor/Motor.h"
-#include "../MotorShield/MotorShield.h"
-#include "SerialStream.h"
+
+#include "Motors.hpp"
+#include "SerialStream.hpp"
 #include <Serial.h>
 
 #define LED_IDLE_PERIOD		4000
@@ -192,7 +192,7 @@ public:
 	CricketProgram(int startAddress)
 		: Program(startAddress)
 	{
-		_selectedMotors = MotorShield::MOTOR_NONE;
+		_selectedMotors = Motors::MOTOR_NONE;
 		_timerCount     = 0;
 	}
 	
@@ -227,19 +227,16 @@ protected:
 		// else (eg. Serial1, Serial2, a Bluetooth shield or whatever)
 	DECLARE_SERIAL_STREAM(Serial)
 	
-	DEFINE_STACK(int, 32)
-	DEFINE_STACK(int, 4)
-	DECLARE_STACK(int, 32, _stack)
-	DECLARE_STACK(int, 4, _lstack)
+	DEFINE_STACK(int, STACK_SIZE)
+	DEFINE_STACK(int, LSTACK_SIZE)
+	DECLARE_STACK(int, STACK_SIZE, _stack)
+	DECLARE_STACK(int, LSTACK_SIZE, _lstack)
 
 	// The following declarations are designed to define pin usage directly
 	// into code, rather than have lots of RAM used just to hold the pin
 	// numbers.
 	BEGIN_DEBOUNCED_DIGITAL_INPUTS(_switches)
-			// On the original Babuino board, the run button is on pin 0 of 
-			// PORTB. For the ATMEGA168/328, this equates to Arduino digital 
-			// pin 8
-		DEBOUNCED_DIGITAL_INPUT(run, 8, LOW, true, 0)
+		DEBOUNCED_DIGITAL_INPUT(run, PIN_RUN, LOW, true, 0)
 		BEGIN_DEBOUNCE_HANDLER(debounce)
 			ADD_TO_DEBOUNCE_HANDLER(run)
 		END_DEBOUNCE_HANDLER
@@ -254,15 +251,13 @@ protected:
 	
 		// There is currently nothing in the code to make this LED flash at 
 		// different rates as the original Babuino code does. (TO DO)
-		// On the original Babuino board, the user led is on pin 5 of PORTD.
-		// For the ATMEGA168/328, this equates to Arduino digital pin 5
-	DIGITAL_OUTPUT(userLed, 5, HIGH, LOW)
-		// On the original Babuino board, the user beeper is on pin 1 of PORTB.
-		// For the ATMEGA168/328, this equates to Arduino digital pin 9
-	ANALOG_OUTPUT(piezoBeeper, 9)
+		
+	DIGITAL_OUTPUT(userLed, PIN_LED, HIGH, LOW)
+		
+	ANALOG_OUTPUT(piezoBeeper, PIN_BEEPER)
 	
-	MotorShield	_motors;
-	MotorShield::Selected _selectedMotors;
+	Motors	_motors;
+	Motors::Selected _selectedMotors;
 
 	enum eOpCodes
 	{
@@ -351,7 +346,7 @@ protected:
 protected:
 	CricketProgramStates	_states;
 	ShortUnion2Bytes		_address;
-	int						_variables[16];
+	int						_variables[MAX_VARIABLES];
 	unsigned int			_timerCount;
 };
 
