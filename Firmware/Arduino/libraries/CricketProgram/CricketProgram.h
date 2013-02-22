@@ -44,6 +44,8 @@
 #include "SerialStream.h"
 #include <Serial.h>
 
+#define LED_IDLE_PERIOD		4000
+#define LED_RUN_PERIOD		 800
 
 //------------------------------------------------------------------------------
 // This is intended to simplify the manipulation of two-byte numbers.
@@ -197,21 +199,15 @@ public:
 	virtual bool setup();
 	virtual int  run();
 	void loop();
-	
-		// Put this into a macro as per BEGIN_DEBOUNCE_TIMER_HANDLER
-	inline void onPinChange()
-	{
-		if (_switches.rawrun())
-		{
-			_switches.setrunDebounced(false);
-		}
-	}
-	
+		
 protected:
 	void doComm();
 	void code_exec();
 	void beep() const;
 	void double_beep() const;
+	
+	void oscillateLedIdle() const;
+	void oscillateLedRun() const;
 	
 	void debounce()
 	{
@@ -240,9 +236,12 @@ protected:
 	// into code, rather than have lots of RAM used just to hold the pin
 	// numbers.
 	BEGIN_DEBOUNCED_DIGITAL_INPUTS(_switches)
-		DEBOUNCED_DIGITAL_INPUT(run, 10, LOW, true, 0)
+			// On the original Babuino board, the run button is on pin 0 of 
+			// PORTB. For the ATMEGA168/328, this equates to Arduino digital 
+			// pin 8
+		DEBOUNCED_DIGITAL_INPUT(run, 8, LOW, true, 0)
 		BEGIN_DEBOUNCE_HANDLER(debounce)
-			ADD_INTERRUPTED_TO_DEBOUNCE_HANDLER(run)
+			ADD_TO_DEBOUNCE_HANDLER(run)
 		END_DEBOUNCE_HANDLER
 	END_DIGITAL_INPUTS(_switches)
 	
@@ -253,11 +252,14 @@ protected:
 		ANALOG_INPUT(D, A5)
 	END_ANALOG_INPUTS(_sensors)
 	
-	// There is currently nothing in the code to make this LED flash at 
-	// different rates as the original Babuino code does. (TO DO)
-	DIGITAL_OUTPUT(userLed, 4, HIGH, LOW)
-	
-	ANALOG_OUTPUT(piezoBeeper, 5)
+		// There is currently nothing in the code to make this LED flash at 
+		// different rates as the original Babuino code does. (TO DO)
+		// On the original Babuino board, the user led is on pin 5 of PORTD.
+		// For the ATMEGA168/328, this equates to Arduino digital pin 5
+	DIGITAL_OUTPUT(userLed, 5, HIGH, LOW)
+		// On the original Babuino board, the user beeper is on pin 1 of PORTB.
+		// For the ATMEGA168/328, this equates to Arduino digital pin 9
+	ANALOG_OUTPUT(piezoBeeper, 9)
 	
 	MotorShield	_motors;
 	MotorShield::Selected _selectedMotors;

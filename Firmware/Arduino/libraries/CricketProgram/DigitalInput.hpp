@@ -159,8 +159,16 @@ protected:
 			if (isDebounced(index))								\
 				if (getState(index))							\
 					return;										\
-		unsigned char thisTime = getTime();						\
+    	unsigned char thisTime = getTime();						\
 		bool rawState = raw##name();							\
+		if (isDebounced(index))									\
+		{														\
+			if (rawState != getState(index))					\
+			{													\
+				setDebounced(index, false);						\
+				lastDebounceTime = 0;							\
+			}													\
+		}														\
 		if (   rawState != getCandidateState(index)				\
 		    || lastDebounceTime == 0 )							\
 		{														\
@@ -172,6 +180,39 @@ protected:
 			setState(index, rawState);							\
 			lastDebounceTime = 0;								\
 		}														\
+	}															\
+	inline void set##name##Debounced(bool debounced)			\
+	{															\
+		setDebounced(index, debounced);							\
+	}															\
+	inline bool is##name##Debounced()							\
+	{															\
+		return isDebounced(index);								\
+	}															\
+	inline bool get##name() const								\
+	{															\
+		return getState(index);									\
+	}															\
+	inline void clear##name()									\
+	{															\
+		setState(index, false);									\
+	}
+//------------------------------------------------------------------------------
+//------------------------------------------------------------------------------	
+#define DEBOUNCED_DIGITAL_INPUT_BLAH(name, pin, onState, latched, index)		\
+	inline void setup##name()									\
+	{															\
+		pinMode(pin, INPUT);									\
+		digitalWrite(pin, HIGH); 								\
+	}															\
+	inline bool  raw##name() const								\
+	{															\
+		return digitalRead(pin) == onState;						\
+	}															\
+	void debounce##name()										\
+	{															\
+		bool rawState = raw##name();							\
+		digitalWrite(5, rawState ? HIGH : LOW);					\
 	}															\
 	inline void set##name##Debounced(bool debounced)			\
 	{															\
@@ -211,16 +252,6 @@ protected:
 #define ADD_TO_DEBOUNCE_HANDLER(name)		\
 		debounce##name();
 
-//------------------------------------------------------------------------------
-// Add a call to debounce a specific input that, within a pin change interrupt,
-// is marked as not debounced.
-// An ugly name. Maybe someone can come up with a better one. 
-// This should be placed between BEGIN_DEBOUNCE_HANDLER and END_DEBOUNCE_HANDLER
-//------------------------------------------------------------------------------		
-#define ADD_INTERRUPTED_TO_DEBOUNCE_HANDLER(name)		\
-		if (!is##name##Debounced())						\
-			debounce##name();		
-		
 #define END_DEBOUNCE_HANDLER }
 
 

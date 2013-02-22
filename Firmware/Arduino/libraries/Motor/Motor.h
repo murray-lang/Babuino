@@ -197,6 +197,56 @@ protected:
 			digitalWrite(pinBrake, _state.brake);				\
 		}														\
 	} name;
+
+//------------------------------------------------------------------------------
+// Declare a motor where the h-bridge driver is interfaced directly to the
+// i/o pins, rather than the slightly more abstract interface to the
+// MotorShield or Ardumoto 
+//------------------------------------------------------------------------------	
+#define H_MOTOR(name, pin1, pin2, pinPwm, rev)					\
+	class Motor_##name	: public MotorBase						\
+	{															\
+	public:														\
+		Motor_##name()											\
+		{														\
+			_state.reverse = rev;								\
+		}														\
+		virtual void setup()				           			\
+		{														\
+			pinMode(pin1, OUTPUT);								\
+			pinMode(pin2, OUTPUT);								\
+			pinMode(pinPwm, OUTPUT);							\
+		}														\
+		virtual void applyDirection()							\
+		{														\
+			if ((int)_state.direction == (int)_state.reverse)	\
+			{													\
+				digitalWrite(pin1, HIGH);						\
+				digitalWrite(pin2, LOW);						\
+			}													\
+			else												\
+			{													\
+				digitalWrite(pin1, LOW);						\
+				digitalWrite(pin2, HIGH);						\
+			}													\
+		}														\
+		virtual void applyPower()								\
+		{														\
+			byte power;											\
+			if (_state.on)										\
+				power = presetToPower(_state.power);			\
+			else												\
+				power = 0;										\
+			analogWrite(pinPwm, power);							\
+		}														\
+		virtual void applyBrake()								\
+		{														\
+			if (_state.brake)									\
+			{													\
+				digitalWrite(pin1, HIGH);						\
+				digitalWrite(pin2, HIGH);						\
+		}														\
+	} name;
 	
 
 #endif //__MOTOR_HPP__

@@ -59,7 +59,6 @@ CricketProgram::loop()
 			}
 			else if (_states.getRunRequest() == RUNNING)
 			{
-				
 				_states.setMachineState(RUN);
 			}
 			break;
@@ -83,7 +82,7 @@ CricketProgram::loop()
 }
 
 //------------------------------------------------------------------------------
-// This is for running the object outside of the usual Arduino environment.
+// This is for running the object outside of the Arduino environment.
 //------------------------------------------------------------------------------
 int
 CricketProgram::run()
@@ -742,7 +741,7 @@ CricketProgram::code_exec()
 							_lstack.push(_stack.pop());
 							temp2--;
 						}
-						_stack.push(temp1); //push16(temp1);
+						_stack.push(temp1); 
 					}
 					++_address;
 					temp2 = (int)_address;
