@@ -18,25 +18,24 @@ To this end I have avoided direct port manipulation and reprogramming of timers.
 
 How to use:
 -----------
-Copy the CricketProgram, Motor and MotorShield directories into the libraries folder in your Arduino directory.
+Copy the CricketProgram folder into the libraries folder in your Arduino directory.
 Copy babuino.ino into your chosen directory.
 Compile and upload as usual using the Arduino IDE
 
 Random notes:
 -------------
-* This won't run currently on a standard Babuino unfortunately because it expects a MotorShield shield.
+* The code is a work-in-progress and still contains the vestiges of some half baked ideas. If you find a bug, or something you consider silly, then please post your thoughts to the Babuino Yahoo group.
+* Logo user procedures have not yet been tested.
+* The code has now been modified to run on the Babuino board, however this has not been tested because I haven't built one. I'm hoping that somebody might volunteer to test it for me.
 * The user LED does not currently flash at different rates like the original.
 * The beeper takes advantage of the default 500Hz PWM signal that the Arduino system sets up for the PWM pins. There is no user timer programming required.
-* The run button is assumed to be pin 10. I needed a pin that had pin change interrupt capability. Perhaps this should be ditched and just poll.
-* The user led is assumed to be connected to pin 4.
-* The Piezo beeper is assumed to be connected to pin 5
 * Code documentation is currently sub-standard. I want to improve it and add Doxygen (or similar) tags to generate HTML documentation.
 
 Interpreting Cricket Motor commands:
 ------------------------------------
 This version reads a motor selection parameter from the code stream for all motor commands. I'm not sure whether all versions of Blocos push this parameter into the code stream because v033 of the firmware doesn't appear to expect it.
 Anyway, if there is a mismatch between Blocos and the firmware in this regard, then the firmware will crash when interpreting the motor commands. If this version of the Babuino firmware appears to go west on motor commands, then try getting the latest version of Blocos.
-Comments?
+Please post comments and experiences to the Babuino Yahoo group.
 
 Use of Macros to define some classes:
 -------------------------------------
@@ -51,7 +50,7 @@ For example:
         return analogRead(pin);  \
     }
  
-This might result in greater code space usage than having a single member function that uses a member variable to select the pin. However, with space optimisation the difference would not be much and there aren't that many pins on the smaller Arduinos anyway. 
+This might result in greater code space usage than having a single member function that uses a member variable to select the pin. However, with space optimisation the difference would not be much and there aren't that many pins on the smaller Arduinos anyway. Actually, some of the macros, particulary relating to debouncing digital inputs, are starting to look a bit over-the-top.
 
 Finally:
 --------
