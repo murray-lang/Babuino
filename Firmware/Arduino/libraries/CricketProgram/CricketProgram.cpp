@@ -50,6 +50,7 @@ void
 CricketProgram::loop()
 {
 	debounce();
+	
 	switch (_states.getMachineState())
 		{
 		case READY:

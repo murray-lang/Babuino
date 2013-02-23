@@ -44,6 +44,9 @@
 
 #define MAX_VARIABLES 16
 
+#define LED_INTERVAL_RUN	 200
+#define LED_INTERVAL_IDLE	1000
+
 //------------------------------------------------------------------------------
 // These I/O pins correspond to the Babuino board
 //------------------------------------------------------------------------------

@@ -235,30 +235,31 @@ protected:
 	// The following declarations are designed to define pin usage directly
 	// into code, rather than have lots of RAM used just to hold the pin
 	// numbers.
-	BEGIN_DEBOUNCED_DIGITAL_INPUTS(_switches)
+	class SwitchInputs : protected DebouncerBase
+	{
+	public:
 		DEBOUNCED_DIGITAL_INPUT(run, PIN_RUN, LOW, true, 0)
-		BEGIN_DEBOUNCE_HANDLER(debounce)
+		inline void debounce()
+		{
 			ADD_TO_DEBOUNCE_HANDLER(run)
-		END_DEBOUNCE_HANDLER
-	END_DIGITAL_INPUTS(_switches)
+		}
+	} _switches;
 	
-	BEGIN_ANALOG_INPUTS(_sensors)
+	class SensorInputs
+	{
+	public:
 		ANALOG_INPUT(A, A2)
 		ANALOG_INPUT(B, A3)
 		ANALOG_INPUT(C, A4)
 		ANALOG_INPUT(D, A5)
-	END_ANALOG_INPUTS(_sensors)
+	} _sensors;
 	
 		// There is currently nothing in the code to make this LED flash at 
 		// different rates as the original Babuino code does. (TO DO)
-		
 	DIGITAL_OUTPUT(userLed, PIN_LED, HIGH, LOW)
 		
 	ANALOG_OUTPUT(piezoBeeper, PIN_BEEPER)
 	
-	Motors	_motors;
-	Motors::Selected _selectedMotors;
-
 	enum eOpCodes
 	{
 		OP_CODE_END 	= 0x00,	// ok
@@ -348,6 +349,8 @@ protected:
 	ShortUnion2Bytes		_address;
 	int						_variables[MAX_VARIABLES];
 	unsigned int			_timerCount;
+	Motors					_motors;
+	Motors::Selected 		_selectedMotors;
 };
 
 #endif // __CRICKETPROGRAM_H__

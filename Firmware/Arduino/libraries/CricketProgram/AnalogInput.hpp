@@ -9,17 +9,11 @@
 // 
 // All rights in accordance with the Babuino Project. 
 //------------------------------------------------------------------------------
-#define BEGIN_ANALOG_INPUTS(name)		\
-class AnalogInputs_##name				\
-{										\
-public:
 
 #define ANALOG_INPUT(name, pin)		\
 	inline int name() const					\
 	{										\
 		return analogRead(pin);				\
 	}
-
-#define END_ANALOG_INPUTS(name) } name;
 
 #endif /* __ANALOGINPUT_HPP__ */
