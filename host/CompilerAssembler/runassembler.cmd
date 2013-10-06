@@ -1,0 +1,1 @@
+cscript //Nologo BabuinoAssembler.js %1 > %~n1.out
