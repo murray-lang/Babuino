@@ -246,14 +246,15 @@ CricketProgrammer.prototype.setData =
 	function(data)
 	{
 		var asArray = data.split('\n');
+		var asInts = new Array();
 	
 			// Now parse the strings into numbers.
-		for (var i = 0; i < data.length; i++)
+		for (var i = 0; i < asArray.length; i++)
 		{
-			asArray[i] = parseInt(asArray[i], 10);
+			asInts.push(parseInt(asArray[i], 10));
 		}
 			// Now convert it to an array of bytes
-		this.data = new Uint8Array(asArray);
+		this.data = new Uint8Array(asInts);
 	};
 	
 CricketProgrammer.prototype.start = 

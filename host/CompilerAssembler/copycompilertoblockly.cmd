@@ -1,0 +1,1 @@
+copy BabuinoLogo.js ..\..\..\Blockly\apps\code

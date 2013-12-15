@@ -10,13 +10,12 @@ var enumArgType =
 { 
 	UNKNOWN :   -1, 
 	PROC_ADDR :  0, 
-	VAR_GET :    1, 
-	VAR_SET:     2, 
-	VAR_COUNTER: 3,
-	TAG_DECL:    4,
-	TAG_REF:     5,
-	BYTE :       6, 
-	SHORT :      7 
+	VAR :        1,
+    COUNTER:     2,
+	TAG_DECL:    3,
+	TAG_REF:     4,
+	BYTE :       5, 
+	SHORT :      6 
 };
 
 function VmCode(length, code, arg, argType, comment)
@@ -29,6 +28,10 @@ function VmCode(length, code, arg, argType, comment)
 	this.comment      = comment;
 	this.xref         = null;
 	this.xrefResolved = false;
+		// This member was added so that "byte n" commands that are variable 
+		// indexes can have a convenient reference to the 
+		//(set|get)(global|local|temp|param) command code.
+	this.partnerCode  = null;
 }
 
 VmCode.prototype.asAssembly = 
@@ -59,53 +62,437 @@ function TagAddress(name, address)
 	this.index = address;
 }
 
+function ProcedureCall(name, args, returnValueRequired)
+{
+	this.name = name;
+	this.argList = args;
+	this.returnValueRequired = returnValueRequired;
+}
+
 function ProcedureDefinition(name, parameters, statements)
 {
 	this.name       = name;
 	this.parameters = parameters;
 	this.statements = statements;
 	this.address    = null;		// Calculated when the procedure is linked to the code
+	this.variables  = new Array();
+	this.returnsValue = false; // This will be determined later by looking for "output"
 }
 
+ProcedureDefinition.prototype.toString = 
+	function ()
+	{
+		var str = "--------------------------------\n";
+		str += "Name:            " + (this.name === undefined ? "undefined" : this.name == null ? "null" : this.name) + "\n";
+		str += "Address:         " + (this.address === undefined ? "undefined" : this.address == null ? "null" : this.address) + "\n";
+		str += "#Parameters:     " + (this.parameters === undefined ? "0" : this.parameters == null ? "0" : this.parameters.length) + "\n";
+		str += "#Statements:     " + (this.statements === undefined ? "0" : this.statements == null ? "0" : this.statements.length) + "\n";
+		str += "#Variables:      " + (this.variables === undefined ? "0" : this.variables == null ? "0" : this.variables.length) + "\n";
+		str += "Returns a value: " + (this.returnsValue ? "true\n" : "false\n");
+		str += "--------------------------------\n";
+		
+		return str;
+	};
+
+ProcedureDefinition.prototype.assignAddresses = 
+	function (startAddress)
+	{
+		this.address    = startAddress;
+		var nextAddress = startAddress;
+		for (var i = 0; i < this.statements.length; i++)
+		{
+			this.statements[i].address = nextAddress;
+			nextAddress += this.statements[i].length;
+		}
+		return nextAddress;
+	};
+	
+ProcedureDefinition.prototype.resolveGotos =	
+	function ()
+	{
+		for (var i = 0; i < this.statements.length; i++)
+		{
+				// Is it a goto
+			if (this.statements[i].argumentType == enumArgType.TAG_REF)
+			{
+					// Yes. Start from the beginning and look for the tag (label)
+				for (var j = 0; j < this.statements.length; j++)
+				{
+					if (this.statements[j].argumentType == enumArgType.TAG_DECL)
+					{
+						if (this.statements[j].argument == this.statements[i].xref)
+						{
+							this.statements[i].argument = this.statements[j].address;
+							this.statements[i].xrefResolved = true;
+							break;
+						}
+					}
+				}
+			}
+		}
+	};
+
+ProcedureDefinition.prototype.findProcedureAddress =
+	function (allProcedures, name)
+	{
+		//this.errorOutput("Resolving address for " + name);
+		for (var i = 0; i < allProcedures.length; i++)
+		{
+			if (allProcedures[i].name == name)
+			{
+				if(allProcedures[i].address !== undefined)
+				{
+					//this.errorOutput("found " + name + " at " + procedureDefinitions[i].address);
+					return allProcedures[i].address;
+				}
+			}
+		}
+		return -1;
+	};	
+	
+ProcedureDefinition.prototype.resolveProcedureCrossReferences =	
+	function (allDefinitions)
+	{
+		for (var i = 0; i < this.statements.length; i++)
+		{
+			if (this.statements[i].argumentType === undefined || this.statements[i].argumentType == null)
+				continue;
+			if (this.statements[i].argumentType !== enumArgType.PROC_ADDR)
+				continue;
+			if (this.statements[i].xref === undefined || this.statements[i].xref == null)
+				continue;
+			
+			var address = this.findProcedureAddress(allDefinitions, this.statements[i].xref);
+			if (address == -1)
+			{
+				this.errorOutput("Unable to resolve address for " + this.statements[i].xref);				
+			}
+			else
+			{
+				this.statements[i].argument = address;
+				this.statements[i].xrefResolved = true;
+			}
+		}
+	};	
+
+ProcedureDefinition.prototype.addVariable =
+	function (variables, name, id)
+	{
+		var newVar   = new Variable(name, variables.length);
+		//newVar.name  = name;
+			// if an id is provided then use it, otherwise use the index
+			// into the array that holds the variable.
+		if (id === undefined)
+			newVar.index = variables.length;
+		else
+			newVar.index = id;
+		variables.push(newVar);
+		return newVar.index;
+	};
+	
+ProcedureDefinition.prototype.findVariable =
+	function (variables, name)
+	{
+		var i;
+		for( var i = 0; i < variables.length; i++ )
+			if( variables[i].name == name )
+				return variables[i].index;
+		return -1;
+	};
+
+ProcedureDefinition.prototype.resolveVariables = 
+	function (globalVariables) //(codes, inProcedure, parameters)
+	{
+		if (this.statements === undefined || this.statements == null)
+			return
+
+			// If in global scope then use global variable table
+		//var localVariables = global ? globalVariables : this.variables;
+		//var localVariables = new Array();        // Variables local to a procedure
+		var blockVariables = new Array();        // Stack of tables of variables
+				// Counters (as used in for loops etc.) are a special case of
+				// variable. Visible inside the loop, visible to the "for"
+				// construct outside the loop, but not visible to code at the
+				// same level as the for statement.
+		//var counters = new Array();        // Stack of counter variables
+				// All variables local to all blocks (eg loops) actually get stored
+				// in a single array. This counter provides the index into this
+				// array, while variables are actually managed here using a stack
+				// of tables. (see description below)
+		//var nextTempVariableIndex = 0;
+		var counter = null;
+		for (var i = 0; i < this.statements.length; i++)
+		{
+					// A "counter" argument type means that the code is a "byte" that 
+					// needs to be resolved to a counter variable index. 
+					// The counter is stored in the same array as temporary variables 
+					// (but can only be resolved in the corresponding block and by the 
+					// "for" construct).
+					// These always occur just before a block.
+			if (this.statements[i].argumentType == enumArgType.COUNTER)
+			{
+					// This will get put into the list of local variables for
+					// the next block that comes along.
+					
+					// Create an anonymous local variable to store the temp variable
+				var tempVarIndex = this.addVariable(this.variables, null);
+				counter = new Variable(this.statements[i].xref, tempVarIndex);
+				//counters.push(counter);
+					// Borrow the msb of the variable index to use as a flag
+					// indicating the first iteration of a loop. This tactic will
+					// obviously fail if we have any more than 127 local variables.
+				this.statements[i].argument = counter.index | 128;
+				this.statements[i].xrefResolved = true;
+				continue;
+			}
+			
+				// If we're in a '[' block ']' then a variable might be in that
+				// scope. Blocks/loops can be nested, with deeper blocks able to
+				// access the variables of outer blocks but not vice versa. So
+				// for each level, an array of variables is created and put on
+				// a stack (another array). All temporary variables will
+				// ultimately be assigned an index into a single array that
+				// holds them all, but the stack of tables here is a temporary
+				// device to limit the scope of lookups. All searches will start
+				// at the top of the stack (the end of the array of tables) and
+				// work backwards through the tables. As a block is exited, its
+				// variable table is popped off the stack so that outer blocks
+				// don't get access to it.
+			if (this.statements[i].code == "block")
+			{
+						// A new variable table for this level
+				var tempVariables = new Array();
+						// If there's a counter variable then push it onto the table
+						// to make it visible to the block.
+				if (counter != null)
+				{
+						tempVariables.push(counter);
+						counter = null;
+				}
+				blockVariables.push(tempVariables);
+				continue;
+			}
+			if (this.statements[i].code == "eob")
+			{
+						// Take variables in this block out of scope
+				blockVariables.pop();
+				continue;
+			}
+			
+			if (this.statements[i].argumentType === undefined || this.statements[i].argumentType == null)
+				continue;
+					
+			if ( this.statements[i].argumentType != enumArgType.VAR)
+					continue;
+					
+			if (this.statements[i].xref === undefined || this.statements[i].xref == null)
+			{
+					this.errorOutput("Cross reference expected but undefined.");
+					continue;
+			}
+					// Need to look at the next code to see if it's a set or get.
+					// Make sure there's actually a next code.
+			if ((i + 1) >= this.statements.length)
+			{
+				this.errorOutput("Unexpected end of code.");
+				return;
+			}
+			if (this.statements[i].partnerCode == null)
+			{
+				continue;
+			}
+			var isGet = this.statements[i].partnerCode.code == "<getvar>";
+			
+			var globalIndex = -1;         
+			var localIndex = -1;
+			var paramIndex = -1;
+				// Start from the innermost level and work outwards
+				// Firstly variables declared/first used in a block
+			if (blockVariables.length > 0)
+			{
+					// We're in a block.
+					// Search the stack of tables, starting with the innermost
+					// table (this block's).
+				for (var tableIndex = blockVariables.length -1; tableIndex >=0; tableIndex--)
+				{
+					var nextTable = blockVariables[tableIndex];
+					localIndex = this.findVariable(nextTable, this.statements[i].xref);
+					if (localIndex != -1)
+						break;        // Found it
+				}
+			}
+				// if not in a block then try variables local to the procedure
+			if (localIndex == -1)
+				localIndex = this.findVariable(this.variables, this.statements[i].xref);
+				
+			if (localIndex != -1)        // The variable is local to a procedure.
+			{
+					this.statements[i].argument = localIndex;
+					this.statements[i].xrefResolved = true;
+					this.statements[i].partnerCode.code = isGet ? "getlocal" : "setlocal";
+					continue;
+			}
+				// Not local. Try the function parameters
+			if (this.parameters !== null)
+			{
+					// Search parameters for the id and return the index if found
+				for( var j = 0; j < this.parameters.length; j++ )
+					if( this.parameters[j] == this.statements[i].xref )
+						paramIndex = j;
+			}
+			if (paramIndex != -1)
+			{
+					// It's a function parameter
+				if (!isGet)
+				{
+					this.errorOutput("Cannot assign a value to procedure parameter " + this.statements[i].xref);
+				}
+				this.statements[i].argument = paramIndex;
+				this.statements[i].xrefResolved = true;
+				this.statements[i].partnerCode.code = "getparam";        // Can't set a parameter (at this stage)
+				continue;
+			}
+				// It's not a function parameter. Try the global variables.
+				// If globalVariables == null, then this procedureDefinition is
+				// the mainline and its local variables are in fact the globals
+			if (globalVariables == null)
+				globalIndex = this.findVariable(this.variables, this.statements[i].xref);
+			else
+				globalIndex = this.findVariable(globalVariables, this.statements[i].xref);
+			
+			if (globalIndex != -1)        // It's a global variable.
+			{
+					this.statements[i].argument = globalIndex;
+					this.statements[i].xrefResolved = true;
+					this.statements[i].partnerCode.code = isGet ? "getglobal" : "setglobal";
+					continue;
+			}
+					// Not found anywhere. If we're just getting the variable then
+					// this is an error.
+			if (isGet)
+			{
+					this.errorOutput("The variable \"" + this.statements[i].xref + "\" is undefined.");
+					continue;
+			}
+					// Reaching this point means that we're setting a variable that
+					// doesn't exist. In LOGO that means it should be created. Decide
+					// where it belongs based on the scope.
+			if (blockVariables.length > 0)
+			{
+							// We're creating a variable within a block, so make it
+							// that scope.
+					var thisBlocksTable = blockVariables[blockVariables.length - 1];
+						// add an anonymous local variable to store the temporary variable
+					var tempVarIndex = this.addVariable(this.variables, null);
+					this.statements[i].argument = this.addVariable(thisBlocksTable, this.statements[i].xref, tempVarIndex);
+					this.statements[i].xrefResolved = true;
+					this.statements[i].partnerCode.code = "setlocal"; //"settemp";
+					continue;
+			}
+				// If globals aren't null then we're in a procedure
+			if (globalVariables != null)
+			{
+				localIndex = this.addVariable(this.variables, this.statements[i].xref);
+				this.statements[i].argument = localIndex;
+				this.statements[i].xrefResolved = true;
+				this.statements[i].partnerCode.code = "setlocal";
+				continue;
+			}
+				// we must be in the global procedure, so the variable being created is global
+			globalIndex = this.addVariable(this.variables, this.statements[i].xref);
+			this.statements[i].argument = globalIndex;
+			this.statements[i].xrefResolved = true;
+			this.statements[i].partnerCode.code = "setglobal";
+		}
+	};
+	
 ProcedureDefinition.prototype.compile = 
 	function ()
 	{
+		if (this.statements === undefined || this.statements == null)
+			return;
 		var codes = [new VmCode(1, "begin", null, null, "Start of " + this.name)];
 		if (this.statements !== undefined)
+		{
+				// If it's not the global procedure, and there are local variables,
+				// then we need to create a frame for them to exist.
+			var hasLocals = this.name != null && this.variables.length > 0;
+			if (hasLocals)
+			{
+				codes.push(new VmCode(2, "byte", this.variables.length, enumArgType.BYTE, "Number of local variables"));
+				codes.push(new VmCode(1, "enter"));
+			}
+				// Search statements for "output" to set this.returnsValue.
+				// At the same time search for "return" and prepend it with 
+				// "leave" if there are local variables.
+			for (var i = 0; i < this.statements.length; i++)
+			{
+				if (this.statements[i].code == "output")
+				{
+					this.returnsValue = true;
+					continue;
+				}
+					// If it's "return" and there are locals, then add a "leave"
+					// before the return to clean up the locals.
+				if (this.statements[i].code == "return" && hasLocals)
+					this.statements.splice(i, 0, new VmCode(1, "leave"));
+			}
+				// Add a "leave" for the final return below if necessary
+			if (hasLocals)
+				this.statements.push(new VmCode(1, "leave"));
 			codes = codes.concat(this.statements);
-		return codes.concat([new VmCode(1, "return", null, null, "End of " + this.name)]);
+		}
+		codes.push(new VmCode(1, "return", null, null, "End of " + this.name));
+		this.statements = codes;
 	};
 
 function BabuinoBackEnd()
 {
+	this.baseAddress = 0; // For now. Be smarter later.
 	this.reset();
 }
 
 BabuinoBackEnd.prototype.reset =
 	function ()
 	{
-		this.currentAddress       = 0;
-		this.globalVariables      = new Array();
+		this.currentPass          = 0;
+		this.currentAddress       = this.baseAddress;
+		//this.globalVariables      = new Array();
 		this.globalTags           = new Array();
 		this.currentBlock         = null;
 		this.currentProc          = null;
-		this.assembly             = new Array();
+		//this.assembly             = new Array();
 		this.paramList            = null;
+		//this.argListStack         = new Array();
 		this.argList              = null;
 		this.procedureDefinitions = new Array();
 		this.output      = null;
 		this.errorOutput = null;
+		
+		this.globalProcDef        = new ProcedureDefinition(null, null, new Array());
 	};
 	
 BabuinoBackEnd.prototype.compileInteger =
-	function (value)
+	function (value, comment)
 	{
-		return [new VmCode(3, "short", value, enumArgType.SHORT)];
+		if (this.currentPass != 2)
+			return null;
+		return [new VmCode(3, "short", value, enumArgType.SHORT, comment)];
 	};
+	
+BabuinoBackEnd.prototype.compileByte =
+	function (value, comment)
+	{
+		if (this.currentPass != 2)
+			return null;
+		return [new VmCode(2, "byte", value, enumArgType.BYTE, comment)];
+	};	
 
 BabuinoBackEnd.prototype.compileUnaryMinus =
 	function ()
 	{
+		if (this.currentPass != 2)
+			return null;
 		var temp1 = new VmCode(2, "byte", 0, enumArgType.BYTE);
 		var temp2 = new VmCode(1, "sub", null, null, "Subtract previous value from zero to get unary minus");
 		return [temp1, temp2];
@@ -140,281 +527,41 @@ BabuinoBackEnd.prototype.compileUnaryMinus =
 BabuinoBackEnd.prototype.compileGetVariable =
 	function (name)
 	{
-		var temp1 = new VmCode(2, "byte", -1, enumArgType.VAR_GET, "Index of " + name);
+		if (this.currentPass != 2)
+			return null;
+		var temp1 = new VmCode(2, "byte", -1, enumArgType.VAR, "Index of " + name);
 		temp1.xref = name;
 		temp1.xrefResolved = false;
 			//"<getvar>" will be changed to either "getglobal","getlocal" or 
 			//"gettemp" when the scope is resolved later,
 		var temp2 = new VmCode(1, "<getvar>");
+		temp1.partnerCode = temp2;
 		return [temp1, temp2];
 	};
 	
 BabuinoBackEnd.prototype.compileSetVariable =
 	function (name, exp)
 	{
-		var temp1 = new VmCode(2, "byte", -1, enumArgType.VAR_SET, "Index of " + name);
-		temp1.xref = name;
-		temp1.xrefResolved = false;
+		if (this.currentPass != 2)
+			return null;
+		var varIndex = new VmCode(2, "byte", -1, enumArgType.VAR, "Index of " + name);
+		varIndex.xref = name;
+		varIndex.xrefResolved = false;
 			//"<setvar>" will be changed to either "setglobal","setlocal" or 
 			//"settemp" when the scope is resolved later,
-		var temp2 = new VmCode(1, "<setvar>");
+		var setVar = new VmCode(1, "<setvar>");
+		varIndex.partnerCode = setVar;
 		//return exp.concat([temp1, temp2]);
 			// The following needs to be returned for compatibility with the
 			// original Babuino. 
-		return [temp1].concat(exp, [temp2]);
-	};
-
-BabuinoBackEnd.prototype.findVariable =
-	function (variables, name)
-	{
-		var i;
-		for( var i = 0; i < variables.length; i++ )
-			if( variables[i].name == name )
-				return variables[i].index;
-		return -1;
-	};
-
-BabuinoBackEnd.prototype.addVariable =
-	function (variables, name, id)
-	{
-		var newVar   = new Variable(name, variables.length);
-		//newVar.name  = name;
-			// if an id is provided then use it, otherwise use the index
-			// into the array that holds the variable.
-		if (id === undefined)
-			newVar.index = variables.length;
-		else
-			newVar.index = id;
-		variables.push(newVar);
-		return newVar.index;
-	};
-
-BabuinoBackEnd.prototype.resolveVariables = 
-	function (codes, inProcedure, parameters)
-	{
-		var localVariables = new Array();	// Variables local to a procedure
-		var blockVariables = new Array();	// Stack of tables of variables
-			// Counters (as used in for loops etc.) are a special case of
-			// variable. Visible inside the loop, visible to the "for"
-			// construct outside the loop, but not visible to code at the
-			// same level as the for statement.
-		var counters       = new Array();	// Stack of counter variables
-			// All variables local to all blocks (eg loops) actually get stored
-			// in a single array. This counter provides the index into this 
-			// array, while variables are actually managed here using a stack
-			// of tables. (see description below)
-		var nextTempVariableIndex = 0;
-		var counter = null;
-		for (var i = 0; i < codes.length; i++)
-		{
-				// A "counter" is simply a forward declaration of a counter 
-				// variable such as the 'i' in for [i 1 10 1] [block]. The
-				// scope of these is wider than the subsequent block, but
-				// should not be visible to code at the same level as the
-				// for statement. A block is assumed to immediately
-				// follow.
-			if (codes[i].code == "counter")
-			{
-				counter = new Variable(codes[i].xref, nextTempVariableIndex++);
-				counters.push(counter);
-				continue;
-			}
-			
-				// If we're in a '[' block ']' then a variable might be in that 
-				// scope. Blocks/loops can be nested, with deeper blocks able to 
-				// access the variables of outer blocks but not vice versa. So
-				// for each level, an array of variables is created and put on
-				// a stack (another array). All temporary variables will 
-				// ultimately be assigned an index into a single array that 
-				// holds them all, but the stack of tables here is a temporary
-				// device to limit the scope of lookups. All searches will start 
-				// at the top of the stack (the end of the array of tables) and 
-				// work backwards through the tables. As a block is exited, its
-				// variable table is popped off the stack so that outer blocks
-				// don't get access to it.
-			if (codes[i].code == "block")
-			{
-					// A new variable table for this level
-				var tempVariables = new Array();
-					// If there's a counter variable then push it onto the table
-					// to make it visible to the block.
-				if (counter != null)
-				{
-					tempVariables.push(counter);
-					counter = null;
-				}
-				blockVariables.push(tempVariables);
-				continue;
-			}
-			if (codes[i].code == "eob")
-			{
-					// Take variables in this block out of scope
-				blockVariables.pop();
-				continue;
-			}
-			
-			if (codes[i].argumentType === undefined || codes[i].argumentType == null)
-				continue;
-				
-				// If it's a counter variable then resolve it by popping the counter stack.
-				// (The corresponding push was done by the "counter" forward declaration)
-			if (codes[i].argumentType == enumArgType.VAR_COUNTER)
-			{
-				if (counters.length == 0)
-				{
-					this.errorOutput("Counter variable \"" + codes[i].xref + "\" was not declared.");
-					continue;
-				}
-				var tempCounter = counters.pop();
-				if (tempCounter.name != codes[i].xref)
-				{
-					this.errorOutput("Imbalance between counter declaration for \"" + tempCounter.name + "\" and actual counter \"" + codes[i].xref + "\"");
-					continue;
-				}
-				//this.errorOutput("Counter: " + codes[i].xref + " = " + tempCounter.index);
-				codes[i].argument = tempCounter.index;
-				codes[i].xrefResolved = true;
-				continue;
-			}
-			if (   codes[i].argumentType != enumArgType.VAR_GET 
-				&& codes[i].argumentType != enumArgType.VAR_SET)
-				continue;
-				
-			if (codes[i].xref === undefined || codes[i].xref == null)
-			{
-				this.errorOutput("Cross reference expected but undefined.");
-				continue;
-			}
-				// Need to look at the next code to see if it's a set or get.
-				// Make sure there's actually a next code.
-			if ((i + 1) >= codes.length)
-			{
-				this.errorOutput("Unexpected end of code.");
-				return;
-			}
-			var isGet = codes[i].argumentType == enumArgType.VAR_GET || codes[i].argumentType == enumArgType.VAR_COUNTER;
-				// Search for the related <getvar> or <setvar>
-			var cmdIndex = i+1;
-			while (cmdIndex < codes.length)
-			{
-				if (isGet && codes[cmdIndex].code == "<getvar>")
-					break;
-					
-				if (!isGet && codes[cmdIndex].code == "<setvar>")
-					break;
-				cmdIndex++;	
-			}
-			if (cmdIndex == codes.length)
-			{
-				this.errorOutput("Cannot find a <getvar> or <setvar> associated with" + codes[i].xref);
-				return;
-			}
-				// Do this now, even though a more locally scoped variable might trump it
-			var globalIndex = this.findVariable(this.globalVariables, codes[i].xref);	
-			var localIndex = -1;
-			var tempIndex = -1;
-			var paramIndex = -1;
-			if (inProcedure)
-			{
-					// procedure parameters have precedence
-				if (parameters !== undefined)
-				{
-						// Search parameters for the id and return the index if found
-					for( var j = 0; j < parameters.length; j++ )
-						if( parameters[j] == codes[i].xref )
-							paramIndex = j;
-						// If the name doesn't match a parameter then try local variables next
-					if (paramIndex == -1)
-						localIndex = this.findVariable(localVariables, codes[i].xref);
-				}
-			}
-			if (paramIndex != -1)	// See if it's a procedure parameter first.
-			{
-				if (!isGet)
-				{
-					this.errorOutput("Cannot assign a value to procedure parameter " + codes[i].xref);
-				}
-				codes[i].argument = paramIndex;
-				codes[i].xrefResolved = true;
-				codes[cmdIndex].code = "getparam";	// Can't set a parameter (at this stage)
-				continue;
-			}
-			
-			if (blockVariables.length > 0)
-			{
-					// We're in a block.
-					// Search the stack of tables, starting with the innermost 
-					// table (this block's).
-				for (var tableIndex = blockVariables.length -1; tableIndex >=0; tableIndex--)
-				{
-					var nextTable = blockVariables[tableIndex];
-					tempIndex = this.findVariable(nextTable, codes[i].xref);
-					if (tempIndex != -1)
-						break;	// Found it
-				}
-			}				
-			
-				// if the variable is found then it's easy: just compile it.
-				// Assume the innermost scope first and work outwards.
-			if (tempIndex != -1) // The variable is in a block (if, while etc.).
-			{
-				codes[i].argument = tempIndex;
-				codes[i].xrefResolved = true;
-				codes[cmdIndex].code = isGet ? "gettemp" : "settemp";
-				continue;
-			}
-			if (localIndex != -1)	// The variable is local to a procedure.
-			{
-				codes[i].argument = localIndex;
-				codes[i].xrefResolved = true;
-				codes[cmdIndex].code = isGet ? "getlocal" : "setlocal";
-				continue;
-			}
-			if (globalIndex != -1)	// It's a global variable.
-			{
-				codes[i].argument = globalIndex;
-				codes[i].xrefResolved = true;
-				codes[cmdIndex].code = isGet ? "getglobal" : "setglobal";
-				continue;
-			}
-				// Not found anywhere. If we're just getting the variable then 
-				// this is an error.
-			if (isGet)
-			{
-				this.errorOutput("The variable \"" + codes[i].xref + "\" is undefined.");
-				continue;
-			}
-				// Reaching this point means that we're setting a variable that
-				// doesn't exist. In LOGO that means it should be created. Decide 
-				// where it belongs based on the scope.
-			if (blockVariables.length > 0)
-			{
-					// We're creating a variable within a block, so make it
-					// that scope.
-				var thisBlocksTable = blockVariables[blockVariables.length - 1];
-				codes[i].argument = this.addVariable(thisBlocksTable, codes[i].xref, nextTempVariableIndex++);
-				codes[i].xrefResolved = true;
-				codes[cmdIndex].code = "settemp";
-				continue;
-			}
-			if (inProcedure)
-			{
-				localIndex = this.addVariable(localVariables, codes[i].xref);
-				codes[i].argument = localIndex;
-				codes[i].xrefResolved = true;
-				codes[cmdIndex].code = "setlocal";
-				continue;
-			}
-			globalIndex = this.addVariable(this.globalVariables, codes[i].xref);;
-			codes[i].argument = globalIndex;
-			codes[i].xrefResolved = true;
-			codes[cmdIndex].code = "setglobal";
-		}
+		return [varIndex].concat(exp, [setVar]);
 	};
 
 BabuinoBackEnd.prototype.addToBlock =	
 	function (statements)
 	{
+		if (this.currentPass != 2)
+			return;
 		if (this.currentBlock == null)
 			this.currentBlock = new Array();
 		this.currentBlock = this.currentBlock.concat(statements);
@@ -429,6 +576,8 @@ BabuinoBackEnd.prototype.clearBlock =
 BabuinoBackEnd.prototype.addToProc =
 	function (statements)
 	{
+		if (this.currentPass != 2)
+			return;
 		if (this.currentProc == null)
 			this.currentProc = new Array();
 		this.currentProc = this.currentProc.concat(statements);
@@ -443,6 +592,8 @@ BabuinoBackEnd.prototype.clearProc =
 BabuinoBackEnd.prototype.compileBlock = 
 	function (block)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var blockLength = 0;
 		if (block !== undefined && block != null)
 		{
@@ -470,6 +621,8 @@ BabuinoBackEnd.prototype.compileBlock =
 BabuinoBackEnd.prototype.compileCurrentBlock = 
 	function ()
 	{
+		if (this.currentPass != 2)
+			return null;
 		var result = this.compileBlock(this.currentBlock);
 		this.clearBlock();
 		
@@ -479,6 +632,8 @@ BabuinoBackEnd.prototype.compileCurrentBlock =
 BabuinoBackEnd.prototype.compileIf =
 	function (exp, block)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var ifCode = new VmCode(1, "if");
 		return exp.concat(block).concat([ifCode]);
 	};
@@ -486,6 +641,8 @@ BabuinoBackEnd.prototype.compileIf =
 BabuinoBackEnd.prototype.compileRepeat =
 	function (exp, block)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var repeatCode = new VmCode(1, "repeat");
 		return exp.concat(block, [repeatCode]);
 	};
@@ -493,6 +650,8 @@ BabuinoBackEnd.prototype.compileRepeat =
 BabuinoBackEnd.prototype.compileLoop =
 	function (block)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var loopCode = new VmCode(1, "loop");
 		return block.concat([loopCode]);
 	};
@@ -500,6 +659,8 @@ BabuinoBackEnd.prototype.compileLoop =
 BabuinoBackEnd.prototype.compileWhile =
 	function (exp, block)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var whileCode = new VmCode(1, "while");
 		return block.concat(exp, [whileCode]);
 	};
@@ -507,6 +668,8 @@ BabuinoBackEnd.prototype.compileWhile =
 BabuinoBackEnd.prototype.compileDoWhile =
 	function (exp, block)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var doCode    = new VmCode(1, "do");
 		var whileCode = new VmCode(1, "while");
 			
@@ -517,6 +680,8 @@ BabuinoBackEnd.prototype.compileDoWhile =
 BabuinoBackEnd.prototype.compileWaitUntil =
 	function (exp)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var block = this.compileBlock(exp);
 		
 		return block.concat([new VmCode(1, "waituntil")]);
@@ -525,27 +690,24 @@ BabuinoBackEnd.prototype.compileWaitUntil =
 BabuinoBackEnd.prototype.compileFor = 
 	function(counter, from, to, step, block)
 	{
-			// The purpose of this vm code is simply to cause a counter variable
-			// to be created *before* a block of code (delimited by "block" and 
-			// "eob"). This is because the real "for" code comes after the block
-			// meaning that code in the block cannot know about the counter 
-			// variable unless there are two passes in the resolving process. 
-			// Note that it's zero length, meaning that it won't generate 
-			// assembly code output.
-		var forBookmark = new VmCode(0, "counter");
-		forBookmark.xref = counter;
-			// Now the actual counter variable
-		var counterCode = new VmCode(2, "byte", -1, enumArgType.VAR_COUNTER, "Index of " + counter);
-		counterCode.xref = counter;
-		counterCode.xrefResolved = false; 
+		if (this.currentPass != 2)
+			return null;
+		from[from.length-1].comment = "from"; // This could be an expression
+		to[to.length-1].comment = "to";
+		step[step.length-1].comment = "step";
+		    // This is i, but with no partner that will act on it
+		var i = new VmCode(2, "byte", -1, enumArgType.COUNTER, "Index of " + counter);
+		i.xref = counter;
+		i.xrefResolved = false;
 		var forCode = new VmCode(1, "for");
-		
-		return [forBookmark].concat(block, counterCode, from, to, step, [forCode]);
+		return [i].concat(from, to, step, block, [forCode]);
 	};	
 
 BabuinoBackEnd.prototype.compileIfElse =
 	function (exp, thenBlock, elseBlock)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var ifCode = new VmCode(1, "ifelse");
 		return [ifCode].concat(exp, thenBlock, elseBlock, [ifCode]);
 	};
@@ -553,6 +715,8 @@ BabuinoBackEnd.prototype.compileIfElse =
 BabuinoBackEnd.prototype.compileTag =	
 	function (label)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var tagCode = new VmCode(0, null, label, enumArgType.TAG_DECL);
 		return [tagCode];
 	};
@@ -560,6 +724,8 @@ BabuinoBackEnd.prototype.compileTag =
 BabuinoBackEnd.prototype.compileGoto =	
 	function (label)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var addrCode = new VmCode(3, "short", null, enumArgType.TAG_REF);
 		addrCode.xref = label;
 		var gotoCode = new VmCode(1, "goto");
@@ -570,6 +736,8 @@ BabuinoBackEnd.prototype.compileGoto =
 BabuinoBackEnd.prototype.compileWait =
 	function (exp)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var waitCode = new VmCode(1, "wait");
 		return exp.concat([waitCode]);
 	};
@@ -580,6 +748,8 @@ BabuinoBackEnd.prototype.compileWait =
 BabuinoBackEnd.prototype.compileSelectMotors0 =
 	function (motors)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var motorTokens = 
 		[
 			["a",     1],
@@ -616,6 +786,8 @@ BabuinoBackEnd.prototype.compileSelectMotors0 =
 BabuinoBackEnd.prototype.compileSelectMotors1 =
 	function (motors)
 	{
+		if (this.currentPass != 2)
+			return null;
 		// This way of assigning motors to bits is not compatible with the
 		// original Babuino, which assigned a token to each possible 
 		// combination.
@@ -648,6 +820,8 @@ BabuinoBackEnd.prototype.compileSelectMotors1 =
 BabuinoBackEnd.prototype.compileMotorCommand =
 	function (motors, cmd)
 	{
+		if (this.currentPass != 2)
+			return null;
 			// Stick with Cricket compatibility for now
 		var select = this.compileSelectMotors0(motors);
 		return select.concat(cmd);
@@ -656,6 +830,8 @@ BabuinoBackEnd.prototype.compileMotorCommand =
 BabuinoBackEnd.prototype.compileRandomXY =
 	function (min, max)
 	{
+		if (this.currentPass != 2)
+			return null;
 		var minCode = new VmCode(3, "short", min, enumArgType.SHORT, "random lower bound");
 		var maxCode = new VmCode(3, "short", max, enumArgType.SHORT, "random upper bound");
 		var randCode = new VmCode(1, "randomxy");
@@ -666,6 +842,8 @@ BabuinoBackEnd.prototype.compileRandomXY =
 BabuinoBackEnd.prototype.compileSensor =
 	function (sensorNum)
 	{
+		if (this.currentPass != 2)
+			return null;
 			// For compatability, use existing sensor1 to sensor8 commands if the
 			// sensor number is in that range. 
 		if (sensorNum >= 1 && sensorNum <= 8)
@@ -681,6 +859,8 @@ BabuinoBackEnd.prototype.compileSensor =
 BabuinoBackEnd.prototype.compileSwitch =
 	function (switchNum)
 	{
+		if (this.currentPass != 2)
+			return null;
 			// For compatibility, use existing switch1 to switch8 commands if the
 			// switch number is in that range. 
 		if (switchNum >= 1 && switchNum <= 8)
@@ -691,6 +871,30 @@ BabuinoBackEnd.prototype.compileSwitch =
 			// as many switches as we want.
 		var numCode = new VmCode(2, "byte", switchNum, enumArgType.BYTE, "Switch number");
 		return [numCode, new VmCode(1, "switch")];
+	};
+	
+BabuinoBackEnd.prototype.compileSimpleCommand =
+	function (cmd)
+	{
+		if (this.currentPass != 2)
+			return null;
+		return [new VmCode(1, cmd)];
+	};
+
+BabuinoBackEnd.prototype.compileArgCommand =
+	function (cmd, arg)
+	{
+		if (this.currentPass != 2)
+			return null;
+		return arg.concat([new VmCode(1, cmd)]);
+	};
+
+BabuinoBackEnd.prototype.compileExpression =
+	function (lhs, op, rhs)	
+	{
+		if (this.currentPass != 2)
+			return null;
+		return lhs.concat(rhs, [new VmCode(1, op)])
 	};
 
 BabuinoBackEnd.prototype.asAssembly =
@@ -719,87 +923,101 @@ BabuinoBackEnd.prototype.printCodes =
 	};
 
 BabuinoBackEnd.prototype.compileProcedureCall =
-	function (name)
+	function (name, returnValueRequired)
 	{
-		var callAddress = new VmCode(3, "short", 0, enumArgType.PROC_ADDR, "Address of " + name);
-			// Mark this short as a cross reference to the procedure name and flag
-			// it as unresolved.
-		callAddress.xref = name;
-		callAddress.xrefResolved = false;
+		if (this.currentPass != 2)
+			return null;
+		//this.output("compileProcedureCall(" + name + ")");
+		/*
+			// We have almost all the information we need to make the procedure
+			// call. However, because we don't necessarily have the definition
+			// for the procedure being called, we don't know if it returns a 
+			// value. We need to know that in order to clean up properly.
+			// So, just put a placeholder where the call is, and store the
+			// contextual information so that all of the necessary codes can be
+			// inserted later (after all of the procedure definitions are known)
+		var callDetails = new ProcedureCall(name, this.argList, returnValueRequired);
+		this.clearArguments();
+		var call = new VmCode(0, "call placeholder" );
+		call.argument = callDetails;
 		
-		var call = new VmCode(1, "call");
-		var result = null;
-		if (this.argList == null)
-			result = [callAddress, call];
-		else
-			result = this.argList.concat([callAddress, call]);
-		this.clearArguments(); 
-		return result;
+		return [call];
+		*/
+			// experimental (code must have procedures defined before being called)
+		var procDef = this.findProcedureDefinition(name);
+		
+		var args = null;
+		if (procDef.parameters != null && this.argList != null)
+		{
+			args = new Array();
+			for (i = 0; i < procDef.parameters.length; i++)
+			{
+					// Argument in the list are in the correct order, but we
+					// need to take the current procedure's arguments from the end.
+					// Remove from the end and place at the beginning of our sub-list.
+				var nextArg = this.argList.pop();
+				args.unshift(nextArg);
+			}
+		}
+		var callDetails = new ProcedureCall(name, args, returnValueRequired);
+		var call = new VmCode(0, "call placeholder" );
+		call.argument = callDetails;
+		
+		return [call];
 	};
 
 BabuinoBackEnd.prototype.resolveProcedureCrossReferences =	
 	function ()
 	{
-		for (var i = 0; i < this.assembly.length; i++)
+		this.globalProcDef.resolveProcedureCrossReferences(this.procedureDefinitions);
+		for (var i = 0; i < this.procedureDefinitions.length; i++)
 		{
-			if (this.assembly[i].argumentType === undefined || this.assembly[i].argumentType == null)
-				continue;
-			if (this.assembly[i].argumentType !== enumArgType.PROC_ADDR)
-				continue;
-			if (this.assembly[i].xref === undefined || this.assembly[i].xref == null)
-				continue;
-			
-			var address = this.findProcedureAddress(this.assembly[i].xref);
-			if (address == -1)
-			{
-				this.errorOutput("Unable to resolve address for " + this.assembly[i].xref);				
-			}
-			else
-			{
-				this.assembly[i].argument = address;
-				this.assembly[i].xrefResolved = true;
-			}
-		}
-	};
-	
-BabuinoBackEnd.prototype.resolveGotos =	
-	function (codes)
-	{
-		for (var i = 0; i < codes.length; i++)
-		{
-				// Is it a goto
-			if (codes[i].argumentType == enumArgType.TAG_REF)
-			{
-					// Yes. Start from the beginning and look for the tag (label)
-				for (var j = 0; j < codes.length; j++)
-				{
-					if (codes[j].argumentType == enumArgType.TAG_DECL)
-					{
-						if (codes[j].argument == codes[i].xref)
-						{
-							codes[i].argument = codes[j].address;
-							codes[i].xrefResolved = true;
-							break;
-						}
-					}
-				}
-			}
+			this.procedureDefinitions[i].resolveProcedureCrossReferences(this.procedureDefinitions);
 		}
 	};
 
 BabuinoBackEnd.prototype.addProcedureDefinition =
 	function (name)
 	{
-		var procDef = new ProcedureDefinition(name, this.paramList, this.currentProc);
-		this.procedureDefinitions.push(procDef);
-		this.clearParameters(); 
-		this.clearProc();
+		if (this.currentPass == 1)
+		{
+			var procDef = new ProcedureDefinition(name, this.paramList, null);
+			this.procedureDefinitions.push(procDef);
+			this.clearParameters();
+		}
+		else if (this.currentPass == 2)
+		{
+			var procDef = this.findProcedureDefinition(name);
+			if (procDef != null)
+			{
+				procDef.statements = this.currentProc;
+				this.clearProc();
+			}
+			else
+			{
+				this.output("addProcedureDefinition(): " + name + " not found!");
+			}
+		}
+		
+		 
+		
+	};
+	
+BabuinoBackEnd.prototype.findProcedureDefinition = 
+	function (name)
+	{
+		for (var i = 0; i < this.procedureDefinitions.length; i++)
+		{
+			if (this.procedureDefinitions[i].name == name)
+				return this.procedureDefinitions[i];
+		}
+		return null;
 	};
 
 BabuinoBackEnd.prototype.printProcedureDefinitions	=
 	function ()
 	{
-		this.errorOutput("---- Procedure Definitions ----");
+		this.errorOutput("---- Procedure Definitions ----\n");
 		for (var i = 0; i < this.procedureDefinitions.length; i++)
 		{
 			var str = this.procedureDefinitions[i].toString();
@@ -807,76 +1025,148 @@ BabuinoBackEnd.prototype.printProcedureDefinitions	=
 		}
 		
 	};
-
-BabuinoBackEnd.prototype.compileProcedureDefinition =
-	function (procDef, nextAddress)
+	
+BabuinoBackEnd.prototype.completeProcedureCall = 
+	function (codes, i)
 	{
-		
-		procDef.address = this.currentAddress;
-		var procCodes = procDef.compile();
-		for (var i = 0; i < procCodes.length; i++)
+		var callPlaceholder = codes[i];
+		var procedureCall = callPlaceholder.argument;
+		if (procedureCall === undefined || procedureCall == null)
 		{
-			var nextCode = procCodes[i];
-			nextCode.address = this.currentAddress;
-			this.currentAddress += nextCode.length;
+			this.errorOutput("Procedure call to '" + procedureCall.name + "' has information missing.");
+			return;
 		}
-		this.resolveGotos(procCodes);
-		this.assembly = this.assembly.concat(procCodes);
+		var procDef = this.findProcedureDefinition(procedureCall.name);
+		if (procDef == null)
+		{
+			this.errorOutput("No procedure defined for '" + procedureCall.name + "'.");
+			return;
+		}
+		if (procedureCall.returnValueRequired && !procDef.returnsValue)
+		{
+			this.errorOutput("A call to " + procedureCall.name + 
+							 " expects a return value, but that procedure doesn't return any value.");
+			return; // To do: proper error handling.
+		}
+			// Determine whether to pop return value
+		var cleanupReturnValue = procDef.returnsValue && !procedureCall.returnValueRequired;
+		var callAddress = new VmCode(3, "short", 0, enumArgType.PROC_ADDR, "Address of " + procDef.name);
+			// Mark this short as a cross reference to the procedure name and flag
+			// it as unresolved.
+		callAddress.xref = procDef.name;
+		callAddress.xrefResolved = false;
+		codes.splice(i, 1);	// Remove the placeholder
+		var sequence = new Array();
+		if (procDef.returnsValue)
+			sequence.push(new VmCode(3, "short", 0, enumArgType.NUMBER, "space for " + procedureCall.name + " return value"));
+			//Using a cdecl-like calling convention where arguments get 
+			//pushed onto the stack from right to left. This means that
+			//the top of the stack will have param1, and top-1 will have
+			//param2 etc. This facilitates variable argument lists 
+			//(although this isn't implemented yet)
+		var numArgs = new VmCode(2, "byte", 0, enumArgType.BYTE, "Number of arguments");
+		var call    = new VmCode(1, "call" );
+		var clear   = new VmCode(2, "byte", 1, enumArgType.BYTE, "Number of arguments to remove(and return value if not used)");
+		var pop     = new VmCode(1, "pop", null, null, "Clean up the stack.");
+		if (procedureCall.argList != null)
+		{
+			//for (var j = procedureCall.argList.length - 1; j >=0; j--)
+			for (var j = 0; j < procedureCall.argList.length; j++)
+			{
+				var args = new Array();
+				//procedureCall.argList[j][procedureCall.argList[j].length - 1].comment = "Value of " + procDef.parameters[j];
+				args = args.concat(procedureCall.argList[j]);
+				this.completeProcedureCalls(args);	// NOTE: This call is ultimately recursive
+				sequence = sequence.concat(args);
+			}
+			numArgs.argument = procedureCall.argList.length;	
+			clear.argument += procedureCall.argList.length;
+		}
+		sequence.push(numArgs);
+		sequence.push(callAddress);
+		sequence.push(call);
+		if (cleanupReturnValue)
+			clear.argument++;
+		sequence.push(clear);
+		sequence.push(pop);
+			
+		for (var k = 0; k < sequence.length; k++)
+			codes.splice(i+k, 0, sequence[k]);
+	};
+
+BabuinoBackEnd.prototype.completeProcedureCalls = 
+	function (codes)
+	{
+		for (var i = 0; i < codes.length; i++)
+		{
+			if (codes[i].code != "call placeholder")
+				continue;
+			this.completeProcedureCall(codes, i);
+		}
+	};
+	
+BabuinoBackEnd.prototype.completeAllProcedureCalls = 
+	function ()
+	{
+		this.completeProcedureCalls(this.globalProcDef.statements);
+		for (var i = 0; i < this.procedureDefinitions.length; i++)
+			this.completeProcedureCalls(this.procedureDefinitions[i].statements);
+		
 	};
 
 BabuinoBackEnd.prototype.compileProcedureDefinitions =
 	function ()
 	{
-			// If there's a "start" procedure then compile it first
 		for (var i = 0; i < this.procedureDefinitions.length; i++)
 		{
-			if (this.procedureDefinitions[i].name == "start")
-				this.compileProcedureDefinition(this.procedureDefinitions[i]);
-		}
-			// Now do the rest, skipping "start"
-		for (var i = 0; i < this.procedureDefinitions.length; i++)
-		{
-			if (this.procedureDefinitions[i].name != "start")
-				this.compileProcedureDefinition(this.procedureDefinitions[i]);
+			this.procedureDefinitions[i].compile();
 		}
 	};
 
 BabuinoBackEnd.prototype.resolveVariablesInProcedures =
 	function ()
 	{
-			
-		for (var i = 0; i < this.procedureDefinitions.length; i++)
-		{	
-				// If it's the "start" procedure then treat it as the main
-				// procedure. Variables local to it will in fact be made global.
-			if (this.procedureDefinitions[i].name == "start")
-				this.resolveVariables(this.procedureDefinitions[i].statements, false);
-			else
-				this.resolveVariables(this.procedureDefinitions[i].statements, true, this.procedureDefinitions[i].parameters); 
+			// If there's code outside of a function definition, then it's the
+			// mainline. Any variables created in that code will be global.
+		var haveGlobalCode = this.globalProcDef.statements.length > 0;
+		if (haveGlobalCode)	
+		{
+				// Treat all functions, including start, as the same
+				// and give them the global variables to help resolve their
+				// references.
+			for (var i = 0; i < this.procedureDefinitions.length; i++)
+			{
+				this.procedureDefinitions[i].resolveVariables(this.globalProcDef.variables);
+			}
+		}
+		else
+		{
+				// No global code outside of a function definition.
+				// Look for a "start" function - that will be the global code
+				// and its variables will be global.
+			var startIndex = -1;
+			for (var i = 0; i < this.procedureDefinitions.length; i++)
+			{
+				if (this.procedureDefinitions[i].name == "start")
+					startIndex = i;
+			}
+				// Now go through all the other functions and resolve their
+				// variables with the variables in start given as the globals.
+				// (If no start then no globals)
+			var globals = startIndex == -1 ? null : this.procedureDefinitions[startIndex].variables;
+			for (var i = 0; i < this.procedureDefinitions.length; i++)
+			{
+				if (i != startIndex)
+					this.procedureDefinitions[i].resolveVariables(globals);
+			}
 		}
 	};
 
-BabuinoBackEnd.prototype.findProcedureAddress =
-	function (name)
-	{
-		//this.errorOutput("Resolving address for " + name);
-		for (var i = 0; i < this.procedureDefinitions.length; i++)
-		{
-			if (this.procedureDefinitions[i].name == name)
-			{
-				if(this.procedureDefinitions[i].address !== undefined)
-				{
-					//this.errorOutput("found " + name + " at " + procedureDefinitions[i].address);
-					return this.procedureDefinitions[i].address;
-				}
-			}
-		}
-		return -1;
-	};	
-	
 BabuinoBackEnd.prototype.addParameter =
 	function (param)
 	{
+		if (this.currentPass != 1)
+			return;
 		if (this.paramList == null)
 			this.paramList = new Array();
 			
@@ -894,10 +1184,19 @@ BabuinoBackEnd.prototype.clearParameters =
 BabuinoBackEnd.prototype.addArgument =
 	function (arg)
 	{
+		if (this.currentPass != 2)
+			return;
+		if (arg === undefined)
+		{
+			this.output("addArgument(undefined)");
+			//this.clearArguments();
+			return;
+		}
 		if (this.argList == null)
 			this.argList = new Array();
-			
-		this.argList = this.argList.concat(arg);
+		//this.output("addArgument(" + arg[arg.length-1].asAssembly() + ")");
+		this.argList.push(arg);		
+		//this.argList = this.argList.concat(arg);
 	};
 
 BabuinoBackEnd.prototype.clearArguments =
@@ -909,17 +1208,58 @@ BabuinoBackEnd.prototype.clearArguments =
 BabuinoBackEnd.prototype.appendVmCodes = 
 	function (codes)
 	{
-		this.assembly = this.assembly.concat(codes);
-		
+		if (this.currentPass != 2)
+			return;
+		//this.assembly = this.assembly.concat(codes);
+		this.globalProcDef.statements = this.globalProcDef.statements.concat(codes);
+		/*
 		for (var i = 0; i < codes.length; i++)
 		{
 			var nextCode = codes[i];
 			nextCode.address = this.currentAddress;
 			this.currentAddress += nextCode.length;
 		}
+		*/
+	};
+	
+BabuinoBackEnd.prototype.assignAddresses = 
+	function ()
+	{
+		this.currentAddress = this.baseAddress;
+			// Start with global code
+		this.currentAddress = this.globalProcDef.assignAddresses(this.currentAddress);
+			// Do the procedures separately.
+			// They're not being appended to the main code yet because I don't
+			// want any gotos to be resolved outside of the current procedure.
+		for (var i = 0; i < this.procedureDefinitions.length; i++)
+			this.currentAddress = this.procedureDefinitions[i].assignAddresses(this.currentAddress);
+	};
+	
+BabuinoBackEnd.prototype.resolveGotos =	
+	function ()
+	{
+		this.globalProcDef.resolveGotos();
+		for (var i = 0; i < this.procedureDefinitions.length; i++)
+			this.procedureDefinitions[i].resolveGotos();
+	};	
+	
+BabuinoBackEnd.prototype.joinProcedures	 = 
+	function ()
+	{
+		for (var i = 0; i < this.procedureDefinitions.length; i++)
+		{
+			if (this.procedureDefinitions[i].statements != null)
+				this.globalProcDef.statements = this.globalProcDef.statements.concat(this.procedureDefinitions[i].statements);
+		}
 	};
 	
 var bbe = new BabuinoBackEnd();	
+
+function trace(str)
+{
+	bbe.output(str);
+	return str;
+}
 
 *]
 
@@ -938,6 +1278,7 @@ var bbe = new BabuinoBackEnd();
 	"tag"
 	"goto"
 	"output"
+	"stop"
 	"make"
 	"wait"
 	"waituntil"
@@ -994,6 +1335,7 @@ var bbe = new BabuinoBackEnd();
 	"\)"
 	"#"
 	","
+	"^"						SOL
 	"sensor"
 	"sensor[1-8]"					Sensorn	
 	"switch"
@@ -1005,8 +1347,8 @@ var bbe = new BabuinoBackEnd();
 	"[a-h]+,"			    		Motors							[* %match = %match.substr( 0, %match.length - 1 ); *]
 	"\'([^\']|\'\')*\'"				String							[* %match = %match.substr( 1, %match.length - 2 );
 																	   %match = %match.replace( /''/g, "\'" );		*]
-	"[0-9]+"						Integer
-	"[0-9]+\.[0-9]*|[0-9]*\.[0-9]+"	Float
+	"-?[0-9]+"						Integer
+	"-?[0-9]+\.[0-9]*|[0-9]*\.[0-9]+"	Float
 	;
 
 /~ Operators to be used in expressions ~/
@@ -1031,7 +1373,7 @@ var bbe = new BabuinoBackEnd();
 
 ##
 
-Program:		Program Stmt										[* if (%2 !== undefined) 
+Program:		Program Stmt										[* if (%2 !== undefined && %2 != null) 
 																	   {
 																			bbe.appendVmCodes(%2);
 																	   } *]
@@ -1046,7 +1388,7 @@ Stmt_List:		Stmt_List Stmt										[* bbe.addToBlock(%2); *]
 				|
 				;
 				
-Arg_List:		Arg_List AddSubExp									[* bbe.addArgument(%2); *]								
+Arg_List:		Arg_List AddSubExp									[* bbe.addArgument(%2);*]								
 				|
 				;
 				
@@ -1061,7 +1403,7 @@ Param:			Identifier | Reporter
 ProcDef:		to Identifier Param_List Proc_Stmt_List end			[* bbe.addProcedureDefinition(%2); *]
 				;
 				
-ProcCall:		Identifier Arg_List									[* %% = bbe.compileProcedureCall(%1); *]			
+ProcCall:		Identifier Arg_List									[* %% = %1; /*bbe.compileProcedureCall(%1);*/ *]			
 				;
 				
 Block:			'[' Stmt_List ']'									[* %% = bbe.compileCurrentBlock(); *]
@@ -1071,85 +1413,86 @@ Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| ifelse Expression Block Block 					[* %% = bbe.compileIfElse(%2, %3, %4); *]
 				| repeat AddSubExp Block							[* %% = bbe.compileRepeat(%2, %3); *]
 				| loop Block										[* %% = bbe.compileLoop(%2); *]
-				| for '[' Identifier AddSubExp AddSubExp Value ']' Block	[* %% = bbe.compileFor(%3, %4, %5, %6, %8); *]
+				| for '[' Identifier AddSubExp AddSubExp NegExp ']' Block	[* %% = bbe.compileFor(%3, %4, %5, %6, %8); *]
 				| forever Block										[* %% = bbe.compileLoop(%2); *]
 				| while Expression Block 							[* %% = bbe.compileWhile(%2, %3); *]
 				| DoWhile Expression Block							[* %% = bbe.compileDoWhile(%2, %3); *]
 				| tag Label											[* %% = bbe.compileTag(%2); *]
 				| goto Identifier									[* %% = bbe.compileGoto(%2);*]
 				| waituntil '[' Expression ']'						[* %% = bbe.compileWaitUntil(%3); *]
-				| ProcDef
-				| output AddSubExp									[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| ProcCall											
+				| ProcDef											
+				| output AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]
+				| stop												[* %% = bbe.compileSimpleCommand("return"); *]
+				| ProcCall							        		[* %% = bbe.compileProcedureCall(%1, false); *]
 				| make Receiver Expression 							[* %% = bbe.compileSetVariable(%2, %3); *]							
 				| wait AddSubExp									[* %% = bbe.compileWait(%2); *]
 				| Motors Motor_cmd 									[* %% = bbe.compileMotorCommand(%1, %2); *]
 				| Servo_cmd
 				| Data_cmd
-				| ledon												[* %% = [new VmCode(1, %1)]; *]
-				| ledoff 											[* %% = [new VmCode(1, %1)]; *]
-				| beep 												[* %% = [new VmCode(1, %1)]; *]
-				| resett 											[* %% = [new VmCode(1, %1)]; *]
+				| ledon												[* %% = bbe.compileSimpleCommand(%1); *]
+				| ledoff 											[* %% = bbe.compileSimpleCommand(%1); *]
+				| beep 												[* %% = bbe.compileSimpleCommand(%1); *]
+				| resett 											[* %% = bbe.compileSimpleCommand(%1); *]
 				| random AddSubExp AddSubExp						[* %% = bbe.compileRandomXY(%2, %3); *]
 				| ';'												[*  *]
 				;
 				
-Expression:		Expression '=' AddSubExp							[* %% = (%1).concat(%3, [new VmCode(1, "eq")]); *]
-				| Expression '<' AddSubExp							[* %% = (%1).concat(%3, [new VmCode(1, "lt")]); *]
-				| Expression '>' AddSubExp							[* %% = (%1).concat(%3, [new VmCode(1, "gt")]); *]
-				| Expression '<=' AddSubExp							[* %% = (%1).concat(%3, [new VmCode(1, "le")]); *]
-				| Expression '>=' AddSubExp							[* %% = (%1).concat(%3, [new VmCode(1, "ge")]); *]
-				| Expression '<>' AddSubExp							[* %% = (%1).concat(%3, [new VmCode(1, "ne")]); *]
+Expression:		Expression '=' AddSubExp							[* %% = bbe.compileExpression(%1, "eq", %3); *]
+				| Expression '<' AddSubExp							[* %% = bbe.compileExpression(%1, "lt", %3); *]
+				| Expression '>' AddSubExp							[* %% = bbe.compileExpression(%1, "gt", %3); *]
+				| Expression '<=' AddSubExp							[* %% = bbe.compileExpression(%1, "le", %3); *]
+				| Expression '>=' AddSubExp							[* %% = bbe.compileExpression(%1, "ge", %3); *]
+				| Expression '<>' AddSubExp							[* %% = bbe.compileExpression(%1, "ne", %3); *]
 				| AddSubExp
 				| LogicExp
 				;
-Motor_cmd:		on													[* %% = [new VmCode(1, %1)]; *]
-				| onfor Value  										[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| off 												[* %% = [new VmCode(1, %1)]; *]
-				| thisway											[* %% = [new VmCode(1, %1)]; *]
-				| thatway											[* %% = [new VmCode(1, %1)]; *]
-				| rd												[* %% = [new VmCode(1, %1)]; *]
-				| brake												[* %% = [new VmCode(1, %1)]; *]
-				| setpower Value									[* %% = (%2).concat([new VmCode(1, %1)]); *] 
+Motor_cmd:		on													[* %% = bbe.compileSimpleCommand(%1); *]
+				| onfor Value  										[* %% = bbe.compileArgCommand(%1, %2); *]
+				| off 												[* %% = bbe.compileSimpleCommand(%1); *]
+				| thisway											[* %% = bbe.compileSimpleCommand(%1); *]
+				| thatway											[* %% = bbe.compileSimpleCommand(%1); *]
+				| rd												[* %% = bbe.compileSimpleCommand(%1); *]
+				| brake												[* %% = bbe.compileSimpleCommand(%1); *]
+				| setpower Value									[* %% = bbe.compileArgCommand(%1, %2); *] 
 				;
 				
-Servo_cmd:		setsvh Value  										[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| svr Value  										[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| svl Value  										[* %% = (%2).concat([new VmCode(1, %1)]); *]
+Servo_cmd:		setsvh Value  										[* %% = bbe.compileArgCommand(%1, %2); *]
+				| svr Value  										[* %% = bbe.compileArgCommand(%1, %2); *]
+				| svl Value  										[* %% = bbe.compileArgCommand(%1, %2); *]
 				;
 
-Data_cmd:		resetdp												[* %% = [new VmCode(1, %1)]; *]
-				| record Value										[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| recall Value										[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| erase Value										[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| send AddSubExp									[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| send AddSubExp AddSubExp							[* %% = (%2).concat(%3, [new VmCode(1, "sendn")]); *]
+Data_cmd:		resetdp												[* %% = bbe.compileSimpleCommand(%1); *]
+				| record Value										[* %% = bbe.compileArgCommand(%1, %2); *]
+				| recall Value										[* %% = bbe.compileArgCommand(%1, %2); *]
+				| erase Value										[* %% = bbe.compileArgCommand(%1, %2); *]
+				| send AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]
+				| send AddSubExp AddSubExp							[* %% = bbe.compileExpression(%2, "sendn", %3); *]
 				;
 				
-AddSubExp:		AddSubExp '-' MulDivExp								[* %% = (%1).concat(%3, [new VmCode(1, "sub")]); *]
-				| difference AddSubExp MulDivExp					[* %% = (%2).concat(%3, [new VmCode(1, "sub")]); *]
-				| AddSubExp '+' MulDivExp							[* %% = (%1).concat(%3, [new VmCode(1, "add")]); *]
-				| sum AddSubExp MulDivExp							[* %% = (%2).concat(%3, [new VmCode(1, "add")]); *]
+AddSubExp:		AddSubExp '-' MulDivExp								[* %% = bbe.compileExpression(%1, "sub", %3); *]
+				| difference AddSubExp MulDivExp					[* %% = bbe.compileExpression(%2, "sub", %3); *]
+				| AddSubExp '+' MulDivExp							[* %% = bbe.compileExpression(%1, "add", %3); *]
+				| sum AddSubExp MulDivExp							[* %% = bbe.compileExpression(%2, "add", %3); *]
 				| MulDivExp
 				;
 				
-MulDivExp:		MulDivExp '*' NegExp								[* %% = (%1).concat(%3, [new VmCode(1, "mul")]); *]
-				| product MulDivExp NegExp							[* %% = (%2).concat(%3, [new VmCode(1, "mul")]); *]
-				| MulDivExp '/' NegExp								[* %% = (%1).concat(%3, [new VmCode(1, "div")]); *]
-				| quotient MulDivExp NegExp							[* %% = (%2).concat(%3, [new VmCode(1, "div")]); *]
-				| MulDivExp '%' NegExp								[* %% = (%1).concat(%3, [new VmCode(1, "mod")]); *]
-				| modulo MulDivExp NegExp							[* %% = (%2).concat(%3, [new VmCode(1, "mod")]); *]
+MulDivExp:		MulDivExp '*' NegExp								[* %% = bbe.compileExpression(%1, "mul", %3); *]
+				| product MulDivExp NegExp							[* %% = bbe.compileExpression(%2, "mul", %3); *]
+				| MulDivExp '/' NegExp								[* %% = bbe.compileExpression(%1, "div", %3); *]
+				| quotient MulDivExp NegExp							[* %% = bbe.compileExpression(%2, "div", %3); *]
+				| MulDivExp '%' NegExp								[* %% = bbe.compileExpression(%1, "mod", %3); *]
+				| modulo MulDivExp NegExp							[* %% = bbe.compileExpression(%2, "mod", %3); *]
 				| NegExp
 				;
 				
-LogicExp:		not LogicExp	    &'*'							[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| and LogicExp LogicExp								[* %% = (%2).concat(%3, [new VmCode(1, %1)]); *]
-				| or LogicExp LogicExp								[* %% = (%2).concat(%3, [new VmCode(1, %1)]); *]
-				| xor LogicExp LogicExp								[* %% = (%2).concat(%3, [new VmCode(1, %1)]); *]
+LogicExp:		not LogicExp	    &'*'							[* %% = bbe.compileArgCommand(%1, %2); *]
+				| and LogicExp LogicExp								[* %% = bbe.compileExpression(%2, %1, %3); *]
+				| or LogicExp LogicExp								[* %% = bbe.compileExpression(%2, %1, %3); *]
+				| xor LogicExp LogicExp								[* %% = bbe.compileExpression(%2, %1, %3); *]
 				| Value
 				;
 				
-NegExp:			'-' Value		&'*'								[* %% = (%2).concat(compileUnaryMinus()); *]
+NegExp:			'-' Value		&'*'								[* %% = (%2).concat(bbe.compileUnaryMinus()); *]
 				| Value
 				;
 
@@ -1157,21 +1500,21 @@ Value:			Integer												[* %% = bbe.compileInteger(%1); *]
 				| Float												[* *]
 				| Reporter											[* %% = bbe.compileGetVariable(%1); *]
 				| '[' Expression ']'								[* %% = %2; *]
-				| timer												[* %% = [new VmCode(1, %1)]; *]
-				| random											[* %% = [new VmCode(1, %1)]; *]
-				| true												[* %% = [new VmCode(3, "short", -1, enumArgType.SHORT, "=true")]; *]
-				| false												[* %% = [new VmCode(3, "short", 0, enumArgType.SHORT, "=false")]; *]
-				| Sensorn											[* %% = [new VmCode(1, %1)]; *]
-				| sensor AddSubExp									[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| Switchn											[* %% = [new VmCode(1, %1)]; *]
-				| switch AddSubExp									[* %% = (%2).concat([new VmCode(1, %1)]); *]
-				| serial AddSubExp									[* %% = (%2).concat([new VmCode(1, "serialn")]); *]
-				| NewSerial AddSubExp								[* %% = (%2).concat([new VmCode(1, "newserialn?")]); *]
-				| serial											[* %% = [new VmCode(1, %1)]; *]
-				| NewSerial											[* %% = [new VmCode(1, %1)]; *]
+				| timer												[* %% = bbe.compileSimpleCommand(%1); *]
+				| random											[* %% = bbe.compileSimpleCommand(%1); *]
+				| true												[* %% = bbe.compileByte(-1, "=true"); *]
+				| false												[* %% = bbe.compileByte(0, "=false"); *]
+				| Sensorn											[* %% = bbe.compileSimpleCommand(%1); *]
+				| sensor AddSubExp									[* %% = bbe.compileSensor(%1); *]
+				| Switchn											[* %% = bbe.compileSimpleCommand(%1); *]
+				| switch AddSubExp									[* %% = bbe.compileSwitch(%1); *]
+				| serial AddSubExp									[* %% = bbe.compileArgCommand("serialn", %2); *]
+				| NewSerial AddSubExp								[* %% = bbe.compileArgCommand("newserialn?", %2); *]
+				| serial											[* %% = bbe.compileSimpleCommand(%1); *]
+				| NewSerial											[* %% = bbe.compileSimpleCommand(%1); *]
+				| ProcCall							        		[* %% = bbe.compileProcedureCall(%1, true);*]
 				;
-
-				
+			
 [*
 
 function BabuinoLogo()
@@ -1179,55 +1522,90 @@ function BabuinoLogo()
 }
 	
 BabuinoLogo.prototype.parse = 
+	function (text)
+	{
+		var error_off	= new Array();
+		var error_la	= new Array();
+		
+		//##PREFIX##_dbg_withparsetree = true;
+		//##PREFIX##_dbg_withtrace = true;
+		var error_cnt = __##PREFIX##parse( text, error_off, error_la );
+		if( error_cnt > 0 )
+		{
+			var i;
+			for( var i = 0; i < error_cnt; i++ )
+			{
+				bbe.errorOutput( "Parse error near >" 
+					+ text.substr( error_off[i], 30 ) + "<, expecting \"" + error_la[i].join() + "\"" );
+			}
+				
+		}
+		return error_cnt;
+	}
+	
+BabuinoLogo.prototype.compile = 
 	function (text, output, errorOutput)
 	{
 		bbe.reset();
 		bbe.output      = output;
 		bbe.errorOutput = errorOutput;
 		
-		var error_cnt 	= 0;
-		var error_off	= new Array();
-		var error_la	= new Array();
-		
+		bbe.currentPass = 1;
+		var error_cnt = this.parse(text);
+		if (error_cnt != 0)
+			return;
+		//bbe.printProcedureDefinitions();
+		bbe.currentPass = 2;
 		bbe.appendVmCodes([new VmCode(1, "begin", null, null, "Start of mainline")]);
-		//##PREFIX##_dbg_withparsetree = true;
-		//##PREFIX##_dbg_withtrace = true;
 		
-		if( ( error_cnt = __##PREFIX##parse( text, error_off, error_la ) ) > 0 )
-		{
-			var i;
-			for( var i = 0; i < error_cnt; i++ )
-				bbe.errorOutput( "Parse error near >" 
-					+ text.substr( error_off[i], 30 ) + "<, expecting \"" + error_la[i].join() + "\"" );
-		}
-		else
+		error_cnt = this.parse(text);
+		
+		if (error_cnt == 0)
 		{
 				// If assembly length is > 1 after the parse then there was mainline
 				// code outside of any procedure. In this case add a "return".
 				// Otherwise remove the "begin" and have it consist only of the 
 				// procedures that will be added later (with "start" first).
-			if (bbe.assembly.length > 1) 
+			if (bbe.globalProcDef.statements.length > 1) 
 			{
 				bbe.appendVmCodes([new VmCode(1, "return", null, null, "End of mainline")]);
 			}
 			else
 			{
-				bbe.assembly.shift();
+				bbe.globalProcDef.statements.shift();
 				bbe.currentAddress = 0;
 			}
-			
-			bbe.resolveVariables(bbe.assembly);
+				// Variables need to be resolved first. This information is needed
+				// in order to determine how many local variables need to be allocated
+				// within each procedure. That information is needed so that the
+				// the instructions can be added to allocate and clean them up.
+			bbe.globalProcDef.resolveVariables(null);
 			bbe.resolveVariablesInProcedures();
-			
-			bbe.resolveGotos(bbe.assembly);
-			
+				// Procedures can now be compiled. In the process it is determined
+				// whether the procedure returns a value. That information is needed
+				// to determine whether, and how much, the calling code needs to clean
+				// up after calling those procedures.
 			bbe.compileProcedureDefinitions();
+				
+			//bbe.appendProcedures();
+				// Adjustment procedure calls to clean up any unused return values.
+			bbe.completeAllProcedureCalls();
+				// Now that all of the instructions are in place, we can step through
+				// and assign addresses.
+			bbe.assignAddresses();
+				// Now that everything has an address, procedure calls and gotos
+				// can be resolved.
+			bbe.resolveGotos();
 			bbe.resolveProcedureCrossReferences();
+				// procedures are currently separate from the main instruction list.
+				// Join the procedure code to the main list so that what follows
+				// can to be done through the whole lot.
+			bbe.joinProcedures();
 			
-			bbe.printCodes(bbe.assembly);
-			//printProcedureDefinitions();
+			bbe.printCodes(bbe.globalProcDef.statements);
+			//bbe.printProcedureDefinitions();
 		}
-	}
+	};
 
 /* Uncomment this code to use the compiler in chrome
 var compileButton;
@@ -1242,7 +1620,7 @@ function writeToConsole(str)
 function handleCompile()
 {
 	var code = editor.value;
-	cc.parse(code, writeToConsole, writeToConsole);
+	cc.compile(code, writeToConsole, writeToConsole);
 }
 
 onConsoleLoad = function() {
@@ -1295,7 +1673,8 @@ if( WScript.Arguments.length > 0 )
 	var str = open_file( WScript.Arguments(0) );
 	
 	var bl = new BabuinoLogo();
-	bl.parse(str, outputHandler, errorOutputHandler);
+	
+	bl.compile(str, outputHandler, errorOutputHandler);
 }
 else
 {

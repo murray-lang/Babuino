@@ -135,6 +135,8 @@ Blockly.Logo.controls_for = function() {
       Blockly.Logo.ORDER_ASSIGNMENT) || '0';
   var argTo = Blockly.Logo.valueToCode(this, 'TO',
       Blockly.Logo.ORDER_ASSIGNMENT) || '0';
+  var argBy = Blockly.Logo.valueToCode(this, 'BY',
+      Blockly.Logo.ORDER_ASSIGNMENT) || '0';
   var branch = Blockly.Logo.statementToCode(this, 'DO');
   if (Blockly.Logo.INFINITE_LOOP_TRAP) {
     branch = Blockly.Logo.INFINITE_LOOP_TRAP.replace(/%1/g,
@@ -144,7 +146,7 @@ Blockly.Logo.controls_for = function() {
   //----------------------------------------------------------------------------
   // Using Logo for structure from Berkley spec
   //----------------------------------------------------------------------------
-  code = 'for [' + variable0 + ' ' + argFrom + ' ' + argTo + ' 1]\n';
+  code = 'for [' + variable0 + ' ' + argFrom + ' ' + argTo + ' ' + argBy + ']\n';
   code += '[\n' + branch + ']\n';
   return code;
 };

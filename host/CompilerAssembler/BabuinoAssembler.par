@@ -139,14 +139,18 @@ var as = new CricketAssembler();
 	"goto"						[* %match = 139; *]
 	"for"						[* %match = 140; *]
 	"randomxy"					[* %match = 141; *]
-	"sendn"						[* %match = 141; *]
-	"serialn"					[* %match = 142; *]
-	"newserialn\?" NewSerialn	[* %match = 143; *]
-	"setsvhn"					[* %match = 144; *]
-	"svrn"						[* %match = 145; *]
-	"svln"						[* %match = 146; *]
-	"sensor"					[* %match = 147; /* sensor number is provided by the previous short */*]
-	"switch"					[* %match = 148; /* switch number is provided by the previous short */*]
+	"sendn"						[* %match = 142; *]
+	"serialn"					[* %match = 143; *]
+	"newserialn\?" NewSerialn	[* %match = 144; *]
+	"setsvhn"					[* %match = 145; *]
+	"svrn"						[* %match = 146; *]
+	"svln"						[* %match = 147; *]
+	"sensor"					[* %match = 148; /* sensor number is provided by the previous short */*]
+	"switch"					[* %match = 149; /* switch number is provided by the previous short */*]
+	"push"						[* %match = 150; *]
+	"pop"						[* %match = 151; *]
+	"enter"						[* %match = 152; *]
+	"leave"						[* %match = 153; *]
 	'sensor[1-8]'	Sensorn	[*	var id = %match.substr( 6 ); 
 										// Legacy sensor[1-8] commands
 									var num = parseInt(id);
@@ -167,7 +171,7 @@ var as = new CricketAssembler();
 									else
 										%match = 76 + num; // ie 79 to 84
 								*]
-	'[0-9]+'	DecInteger			[* %match = parseInt(%match); *]
+	'-?[0-9]+'	DecInteger			[* %match = parseInt(%match); *]
 	'0b[0-9]+'	BinInteger			[* %match = parseInt(%match.substr(2), 2); *]
 	'0x[0-9]+'	HexInteger			[* %match = parseInt(%match.substr(2), 16); *]
 	'[0-9]+\:'	Address
@@ -268,6 +272,10 @@ UnaryCmd:		  begin
 				| Sensorn
 				| switch
 				| Switchn
+				| push
+				| pop
+				| enter
+				| leave
 				;
 
 

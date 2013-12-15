@@ -81,8 +81,51 @@ pre,
   border-top-style: none;
   overflow: hidden;
   display: none;
+}
+#textarea_logo {
+  width: 100%;
+  height: 100%;
+  border: none;
+  resize: none;
   -webkit-user-select: text;
 }
+
+#content_basm {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #ccc;
+  border-top-style: none;
+  overflow: hidden;
+  display: none;
+}
+#textarea_basm {
+  width: 100%;
+  height: 100%;
+  border: none;
+  resize: none;
+  -webkit-user-select: text;
+}
+
+#content_out {
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #ccc;
+  border-top-style: none;
+  overflow: hidden;
+  display: none;
+}
+#textarea_out {
+  width: 100%;
+  height: 100%;
+  border: none;
+  resize: none;
+  -webkit-user-select: text;
+}
+
 #content_xml {
   width: 100%;
   height: 100%;

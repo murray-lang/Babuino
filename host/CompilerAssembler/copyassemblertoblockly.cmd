@@ -1,0 +1,1 @@
+copy BabuinoAssembler.js ..\..\..\Blockly\apps\code

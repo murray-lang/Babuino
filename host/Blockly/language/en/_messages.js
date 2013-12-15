@@ -118,6 +118,7 @@ Blockly.LANG_CONTROLS_FOR_INPUT_WITH = 'count with';
 Blockly.LANG_CONTROLS_FOR_INPUT_VAR = 'x';
 Blockly.LANG_CONTROLS_FOR_INPUT_FROM = 'from';
 Blockly.LANG_CONTROLS_FOR_INPUT_TO = 'to';
+Blockly.LANG_CONTROLS_FOR_INPUT_BY = 'by';
 Blockly.LANG_CONTROLS_FOR_INPUT_DO = 'do';
 Blockly.LANG_CONTROLS_FOR_TOOLTIP = 'Count from a start number to an end number.\n' +
     'For each count, set the current count number to\n' +

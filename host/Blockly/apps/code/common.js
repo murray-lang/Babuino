@@ -210,12 +210,18 @@ function renderContent() {
   } 
   */
   else if (content.id == 'content_logo') {
-    content.innerHTML = Blockly.Generator.workspaceToCode('Logo');
+    //content.innerHTML = Blockly.Generator.workspaceToCode('Logo');
+	var logoTextarea = document.getElementById('textarea_logo');
+    logoTextarea.value = Blockly.Generator.workspaceToCode('Logo');
+    logoTextarea.focus();
   }
   else if (content.id == 'content_basm') {
 		// Get Logo code first
 	var code = Blockly.Generator.workspaceToCode('Logo');
-    content.innerHTML = compileLogo(code);
+    //content.innerHTML = compileLogo(code);
+	var logoTextarea = document.getElementById('textarea_basm');
+    logoTextarea.value = compileLogo(code);
+    logoTextarea.focus();
   }
   else if (content.id == 'content_out') {
 		// Get Logo code first
@@ -224,7 +230,9 @@ function renderContent() {
     var basm = compileLogo(code);
 		// then assemble to cricket codes
 	var cricket = assembleBasm(basm);
-    content.innerHTML = cricket;
+    //content.innerHTML = cricket;
+	var outTextarea = document.getElementById('textarea_out');
+    outTextarea.value = cricket;
   }
   else if (content.id == 'content_console') {
 	var tempTextarea = document.getElementById('textarea_console');
@@ -317,7 +325,7 @@ function compileLogo(code)
 			bsm += str;
 		};
 	var bl = new BabuinoLogo();
-	bl.parse(code, output, output);
+	bl.compile(code, output, output);
 	return bsm;	
 }
 

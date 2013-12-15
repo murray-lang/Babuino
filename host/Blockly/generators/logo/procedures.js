@@ -39,18 +39,18 @@ Blockly.Logo.procedures_defreturn = function() {
   var returnValue = Blockly.Logo.valueToCode(this, 'RETURN',
       Blockly.Logo.ORDER_NONE) || '';
   if (returnValue) {
-    returnValue = '  return ' + returnValue + ';\n';
+    returnValue = '  output ' + returnValue + '\n';
   }
   var args = [];
   for (var x = 0; x < this.arguments_.length; x++) {
-    args[x] = Blockly.Logo.variableDB_.getName(this.arguments_[x],
+    args[x] = ' :' + Blockly.Logo.variableDB_.getName(this.arguments_[x],
         Blockly.Variables.NAME_TYPE);
   }
-  var code = 'function ' + funcName + '(' + args.join(', ') + ') {\n' +
-      branch + returnValue + '}';
+  var code = 'to ' + funcName + args.join(' ') + '\n' +
+      branch + returnValue + 'end\n';
   code = Blockly.Logo.scrub_(this, code);
   Blockly.Logo.definitions_[funcName] = code;
-  return null;
+  return code;
 };
 
 // Defining a procedure without a return value uses the same generator as
@@ -67,7 +67,7 @@ Blockly.Logo.procedures_callreturn = function() {
     args[x] = Blockly.Logo.valueToCode(this, 'ARG' + x,
         Blockly.Logo.ORDER_COMMA) || 'null';
   }
-  var code = funcName + '(' + args.join(', ') + ')';
+  var code = funcName + ' ' + args.join(' ');// + '\n';
   return [code, Blockly.Logo.ORDER_FUNCTION_CALL];
 };
 
@@ -80,7 +80,7 @@ Blockly.Logo.procedures_callnoreturn = function() {
     args[x] = Blockly.Logo.valueToCode(this, 'ARG' + x,
         Blockly.Logo.ORDER_COMMA) || 'null';
   }
-  var code = funcName + '(' + args.join(', ') + ');\n';
+  var code = funcName + ' ' + args.join(' ') + '\n';
   return code;
 };
 
@@ -88,14 +88,14 @@ Blockly.Logo.procedures_ifreturn = function() {
   // Conditionally return value from a procedure.
   var condition = Blockly.Logo.valueToCode(this, 'CONDITION',
       Blockly.Logo.ORDER_NONE) || 'false';
-  var code = 'if (' + condition + ') {\n';
+  var code = 'if ' + condition + '\n[\n';
   if (this.hasReturnValue_) {
     var value = Blockly.Logo.valueToCode(this, 'VALUE',
         Blockly.Logo.ORDER_NONE) || 'null';
-    code += '  return ' + value + ';\n';
+    code += '  output ' + value + '\n';
   } else {
-    code += '  return;\n';
+    code += '  stop\n';
   }
-  code += '}\n';
+  code += ']\n';
   return code;
 };
