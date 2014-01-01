@@ -85,8 +85,6 @@ union ShortUnion2Bytes
 	inline bool operator < (int rhs)  { return asShort < rhs; }
 	inline bool operator > (int rhs)  { return asShort > rhs; }
 };
-
-
 //------------------------------------------------------------------------------
 // Some #defines from the original Babuino code have been put into these enums. 
 //------------------------------------------------------------------------------
@@ -206,6 +204,8 @@ protected:
 	void beep() const;
 	void double_beep() const;
 	
+	//void print_stack(); // debugging
+	
 	void oscillateLedIdle() const;
 	void oscillateLedRun() const;
 	
@@ -228,9 +228,9 @@ protected:
 	DECLARE_SERIAL_STREAM(Serial)
 	
 	DEFINE_STACK(int, STACK_SIZE)
-	DEFINE_STACK(int, LSTACK_SIZE)
+	//DEFINE_STACK(int, LSTACK_SIZE)
 	DECLARE_STACK(int, STACK_SIZE, _stack)
-	DECLARE_STACK(int, LSTACK_SIZE, _lstack)
+	//DECLARE_STACK(int, LSTACK_SIZE, _lstack)
 
 	// The following declarations are designed to define pin usage directly
 	// into code, rather than have lots of RAM used just to hold the pin
@@ -265,8 +265,8 @@ protected:
 		OP_CODE_END 	= 0x00,	// ok
 		OP_BYTE			= 0x01,	// x	try another code - seems OK - ??
 		OP_NUMBER		= 0x02,	// <------ Testing - OK
-		OP_LIST	 		= 0x03,	// ok
-		OP_EOL		 	= 0x04,	// ok
+		OP_BLOCK	 	= 0x03,	// Was OP_LIST
+		OP_EOB		 	= 0x04,	// Was OP_EOL
 		OP_EOLR	 		= 0x05,	// Seems OK?
 		OP_LTHING		= 0x06,	// ok
 		OP_STOP			= 0x07,	// ok
@@ -341,13 +341,45 @@ protected:
 		OP_SWITCHC		= 0x4F,
 		OP_SWITCHD		= 0x50,
 		OP_LEDON		= 0x55,
-		OP_LEDOFF		= 0x56
+		OP_LEDOFF		= 0x56,
+		OP_SETSVH		= 87,
+		OP_SVR			= 88,
+		OP_SVL			= 89,
+		OP_TALK_TO_MOTORS = 90,
+		//---- new codes from here on ----
+		OP_WHILE		= 128,
+		OP_DO			= 129,
+		OP_CALL			= 130,
+		OP_LE			= 131,
+		OP_GE			= 132,
+		OP_NE			= 133,
+		OP_SETLOCAL		= 134,
+		OP_GETLOCAL		= 135,
+		OP_SETTEMP		= 136,
+		OP_GETTEMP		= 137,
+		OP_GETPARAM		= 138,
+		OP_GOTO			= 139,
+		OP_FOR			= 140,		
+		OP_RANDOMXY     = 141,
+		OP_SENDN        = 142,
+		OP_SERIALN      = 143,
+		OP_NEWSERIALN   = 144,
+		OP_SETSVHN      = 145,
+		OP_SVRN			= 146,
+		OP_SVLN			= 147,
+		OP_SENSOR		= 148,
+		OP_SWITCH		= 149,
+		OP_PUSH			= 150,	//Raise the stack by the given amount
+		OP_POP			= 151,	//Clear the top of the stack by the given amount
+		OP_ENTER		= 152,
+		OP_LEAVE		= 153
 	};
 	
 protected:
 	CricketProgramStates	_states;
 	ShortUnion2Bytes		_address;
-	int						_variables[MAX_VARIABLES];
+	int						_globals[MAX_GLOBALS];
+	int						_temporaries[MAX_TEMPORARIES];
 	unsigned int			_timerCount;
 	Motors					_motors;
 	Motors::Selected 		_selectedMotors;

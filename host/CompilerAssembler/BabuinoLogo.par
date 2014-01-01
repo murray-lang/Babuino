@@ -62,10 +62,11 @@ function TagAddress(name, address)
 	this.index = address;
 }
 
-function ProcedureCall(name, args, returnValueRequired)
+function ProcedureCall(name, args, returnsValue, returnValueRequired)
 {
 	this.name = name;
 	this.argList = args;
+	this.returnsValue = returnsValue;
 	this.returnValueRequired = returnValueRequired;
 }
 
@@ -97,6 +98,9 @@ ProcedureDefinition.prototype.toString =
 ProcedureDefinition.prototype.assignAddresses = 
 	function (startAddress)
 	{
+		if (this.statements === undefined || this.statements == null)
+			return startAddress;
+			
 		this.address    = startAddress;
 		var nextAddress = startAddress;
 		for (var i = 0; i < this.statements.length; i++)
@@ -110,6 +114,8 @@ ProcedureDefinition.prototype.assignAddresses =
 ProcedureDefinition.prototype.resolveGotos =	
 	function ()
 	{
+		if (this.statements === undefined || this.statements == null)
+			return;
 		for (var i = 0; i < this.statements.length; i++)
 		{
 				// Is it a goto
@@ -153,6 +159,8 @@ ProcedureDefinition.prototype.findProcedureAddress =
 ProcedureDefinition.prototype.resolveProcedureCrossReferences =	
 	function (allDefinitions)
 	{
+		if (this.statements === undefined || this.statements == null)
+			return;
 		for (var i = 0; i < this.statements.length; i++)
 		{
 			if (this.statements[i].argumentType === undefined || this.statements[i].argumentType == null)
@@ -409,10 +417,8 @@ ProcedureDefinition.prototype.resolveVariables =
 ProcedureDefinition.prototype.compile = 
 	function ()
 	{
-		if (this.statements === undefined || this.statements == null)
-			return;
 		var codes = [new VmCode(1, "begin", null, null, "Start of " + this.name)];
-		if (this.statements !== undefined)
+		if (this.statements !== undefined && this.statements != null)
 		{
 				// If it's not the global procedure, and there are local variables,
 				// then we need to create a frame for them to exist.
@@ -465,11 +471,23 @@ BabuinoBackEnd.prototype.reset =
 		this.paramList            = null;
 		//this.argListStack         = new Array();
 		this.argList              = null;
+		this.statementsNotArguments = null;
 		this.procedureDefinitions = new Array();
 		this.output      = null;
 		this.errorOutput = null;
 		
 		this.globalProcDef        = new ProcedureDefinition(null, null, new Array());
+			// Because Logo doesn't use parentheses around function parameters
+			// and also has no statement terminator (such as ; in C), when the
+			// parser sees a single line of function calls and parameters, it
+			// can't disambiguate a parameter from a new function statement.
+			// Part of the answer is to have an initial pass that only looks
+			// at function signatures. The other part of the answer is to use
+			// that information to pick apart and reassemble the calls as the
+			// parser responds to the tokens from right to left.
+			// The following is an array of arrays used to manage the
+			// rearrangement.
+		this.procedureCalls       = new Array();
 	};
 	
 BabuinoBackEnd.prototype.compileInteger =
@@ -576,8 +594,8 @@ BabuinoBackEnd.prototype.clearBlock =
 BabuinoBackEnd.prototype.addToProc =
 	function (statements)
 	{
-		if (this.currentPass != 2)
-			return;
+		//if (this.currentPass != 2)
+		//	return;
 		if (this.currentProc == null)
 			this.currentProc = new Array();
 		this.currentProc = this.currentProc.concat(statements);
@@ -873,6 +891,20 @@ BabuinoBackEnd.prototype.compileSwitch =
 		return [numCode, new VmCode(1, "switch")];
 	};
 	
+BabuinoBackEnd.prototype.compileOutput =
+	function (arg)
+	{
+		var op = [new VmCode(1, "output")];
+		if (this.currentPass == 1)
+		{
+			return op;
+		}
+		else if (this.currentPass == 2)
+		{
+			return arg.concat(op);
+		}
+	};
+	
 BabuinoBackEnd.prototype.compileSimpleCommand =
 	function (cmd)
 	{
@@ -927,43 +959,108 @@ BabuinoBackEnd.prototype.compileProcedureCall =
 	{
 		if (this.currentPass != 2)
 			return null;
-		//this.output("compileProcedureCall(" + name + ")");
-		/*
-			// We have almost all the information we need to make the procedure
-			// call. However, because we don't necessarily have the definition
-			// for the procedure being called, we don't know if it returns a 
-			// value. We need to know that in order to clean up properly.
-			// So, just put a placeholder where the call is, and store the
-			// contextual information so that all of the necessary codes can be
-			// inserted later (after all of the procedure definitions are known)
-		var callDetails = new ProcedureCall(name, this.argList, returnValueRequired);
-		this.clearArguments();
-		var call = new VmCode(0, "call placeholder" );
-		call.argument = callDetails;
 		
-		return [call];
-		*/
-			// experimental (code must have procedures defined before being called)
 		var procDef = this.findProcedureDefinition(name);
 		
+			// Debugging
+		/*
+		this.output("compileProcedureCall(" + name + ")\n{\n");
+		var numParams = procDef.parameters == null ? 0 : procDef.parameters.length;
+		var numArgs = this.argList == null ? 0 : this.argList.length;
+		this.output("#Parameters: " + numParams + "\n");
+		this.output("#Arguments: " + numArgs + "\n");
+		this.output("#Output: " + (procDef.returnsValue ? "true" : "false") + "\n");
+		if (this.argList != null)
+			for (i = 0; i < this.argList.length; i++)
+			{
+				this.output("------------------------\n");
+				this.printCodes(this.argList[i]);
+				this.output("------------------------\n");
+			}
+		*/
 		var args = null;
+		var appendStatementsThatWereArguments = false;
 		if (procDef.parameters != null && this.argList != null)
 		{
-			args = new Array();
-			for (i = 0; i < procDef.parameters.length; i++)
+			args = null;
+				// Find the last "empty argument". This will correspond to the
+				// procedure call being handled here. Also see if it's the first (left-most).
+				// If there are no more empty arguments (marking the place of a procedure call)
+				// then this current call is the leftmost in a statement and all of the arguments,
+				// including other procedure calls, should now be in place. Any arguments that
+				// were found to be in fact statements can be appended after this call.
+			var argIndex = -1;
+			var first = true;
+			for (var i = this.argList.length - 1; i >= 0; i--)
 			{
-					// Argument in the list are in the correct order, but we
-					// need to take the current procedure's arguments from the end.
-					// Remove from the end and place at the beginning of our sub-list.
-				var nextArg = this.argList.pop();
-				args.unshift(nextArg);
+				if (this.argList[i][0].code == "empty argument")
+				{
+					if (argIndex == -1) 
+					{
+						argIndex = i; // found the last (right-most)
+					}
+					else
+					{
+							// There is another call to the left. (Keep accumulating any 
+							// statements mistaken for arguments.)
+						first = false;
+						break;
+					}
+				}
+			}
+			appendStatementsThatWereArguments = first;
+				// If there's no empty argument associated with this procedure 
+				// then I've screwed something up.
+			if (argIndex < 0)
+			{
+				this.errorOutput("Internal error; Procedure " + name + " has no argument list (even an empty one).\n");
+				return null;
+			}
+				//Now pick off the parameters
+			if (procDef.parameters.length > 0)
+			{
+					// The number of arguments to the right of the procedure name 
+					// must at least be the number of expected parameters (I'll
+					// sort out variable argument lists some other time)
+				var availableArgs = this.argList.length - (argIndex+1);
+				if (availableArgs < procDef.parameters.length)
+				{
+					this.errorOutput(name + " requires " + procDef.parameters.length +
+										"arguments, but has been given at most " + availableArgs + "\n");
+					return null;
+				}
+				args = this.argList.splice(argIndex + 1, procDef.parameters.length);
 			}
 		}
-		var callDetails = new ProcedureCall(name, args, returnValueRequired);
-		var call = new VmCode(0, "call placeholder" );
-		call.argument = callDetails;
 		
-		return [call];
+		//this.output("}\n");
+		var callDetails = new ProcedureCall(name, args, procDef.returnsValue, returnValueRequired);
+		var call = new VmCode(1, "call placeholder(" + name + ")" );
+		call.argument = callDetails;
+
+		var returnValue = [call];
+		
+		if (appendStatementsThatWereArguments)
+			returnValue = returnValue.concat(this.compileStatementsMistakenForArguments());
+		
+		return returnValue;
+	};
+	
+BabuinoBackEnd.prototype.compileStatementsMistakenForArguments = 
+	function ()
+	{
+		var returnValue = new Array();
+		
+		if (this.statementsNotArguments != null)
+		{
+			for (var i = 0; i < this.statementsNotArguments.length; i++)
+			{
+				returnValue = returnValue.concat(this.statementsNotArguments[i]);
+			}
+			this.statementsNotArguments = null;
+		}
+		
+		return returnValue;
 	};
 
 BabuinoBackEnd.prototype.resolveProcedureCrossReferences =	
@@ -982,6 +1079,16 @@ BabuinoBackEnd.prototype.addProcedureDefinition =
 		if (this.currentPass == 1)
 		{
 			var procDef = new ProcedureDefinition(name, this.paramList, null);
+				// Look for an output code to determine if this procedure returns a value
+			if (this.currentProc != null)
+			{
+				for (i = 0; i < this.currentProc.length; i++)
+				{
+					if (this.currentProc[i] != null && this.currentProc[i].code == "output")
+						procDef.returnsValue = true;
+				}
+				this.clearProc();
+			}
 			this.procedureDefinitions.push(procDef);
 			this.clearParameters();
 		}
@@ -1044,8 +1151,9 @@ BabuinoBackEnd.prototype.completeProcedureCall =
 		}
 		if (procedureCall.returnValueRequired && !procDef.returnsValue)
 		{
-			this.errorOutput("A call to " + procedureCall.name + 
-							 " expects a return value, but that procedure doesn't return any value.");
+				// This procedure call looks like an argument to another function
+				// but it can't be because it doesn't return a value. It must
+				// therefore be a new statement on the same line.
 			return; // To do: proper error handling.
 		}
 			// Determine whether to pop return value
@@ -1066,12 +1174,12 @@ BabuinoBackEnd.prototype.completeProcedureCall =
 			//(although this isn't implemented yet)
 		var numArgs = new VmCode(2, "byte", 0, enumArgType.BYTE, "Number of arguments");
 		var call    = new VmCode(1, "call" );
-		var clear   = new VmCode(2, "byte", 1, enumArgType.BYTE, "Number of arguments to remove(and return value if not used)");
+		var clear   = new VmCode(2, "byte", 0, enumArgType.BYTE, "Number of arguments to remove(and return value if not used)");
 		var pop     = new VmCode(1, "pop", null, null, "Clean up the stack.");
 		if (procedureCall.argList != null)
 		{
-			//for (var j = procedureCall.argList.length - 1; j >=0; j--)
-			for (var j = 0; j < procedureCall.argList.length; j++)
+			for (var j = procedureCall.argList.length - 1; j >=0; j--)
+			//for (var j = 0; j < procedureCall.argList.length; j++)
 			{
 				var args = new Array();
 				//procedureCall.argList[j][procedureCall.argList[j].length - 1].comment = "Value of " + procDef.parameters[j];
@@ -1082,13 +1190,25 @@ BabuinoBackEnd.prototype.completeProcedureCall =
 			numArgs.argument = procedureCall.argList.length;	
 			clear.argument += procedureCall.argList.length;
 		}
-		sequence.push(numArgs);
+			// If there are no arguments but there is a return value, then we can
+			// conserve byte codes by leaving out the numArgs codes and relying on
+			// the zero in the return value place holder to double-up as a zero 
+			// arguments indicator. That means that we also don't need to do any
+			// stack cleanup of the argument count.
+		if (!(numArgs.argument == 0 && procDef.returnsValue))
+		{
+			sequence.push(numArgs);
+			clear.argument++;		// Include the numArgs
+		}
 		sequence.push(callAddress);
 		sequence.push(call);
 		if (cleanupReturnValue)
 			clear.argument++;
-		sequence.push(clear);
-		sequence.push(pop);
+		if (clear.argument > 0)
+		{
+		  sequence.push(clear);
+		  sequence.push(pop);
+	  }
 			
 		for (var k = 0; k < sequence.length; k++)
 			codes.splice(i+k, 0, sequence[k]);
@@ -1097,9 +1217,11 @@ BabuinoBackEnd.prototype.completeProcedureCall =
 BabuinoBackEnd.prototype.completeProcedureCalls = 
 	function (codes)
 	{
+		if (codes == null)
+			return;
 		for (var i = 0; i < codes.length; i++)
 		{
-			if (codes[i].code != "call placeholder")
+			if (codes[i].code.substr(0, 16) != "call placeholder")
 				continue;
 			this.completeProcedureCall(codes, i);
 		}
@@ -1192,12 +1314,89 @@ BabuinoBackEnd.prototype.addArgument =
 			//this.clearArguments();
 			return;
 		}
+		/*
+		this.output("addArgument\n(\n");
+		this.printCodes(arg);
+		this.output(")\n");
+		*/
 		if (this.argList == null)
 			this.argList = new Array();
-		//this.output("addArgument(" + arg[arg.length-1].asAssembly() + ")");
-		this.argList.push(arg);		
-		//this.argList = this.argList.concat(arg);
+			
+		if (arg[0].code.substr(0, 16) == "call placeholder")
+		{
+			// All procedure arguments get reported after all value arguments.
+			// Also, the procedure arguments are reported from right to left,
+			// while the value arguments are reported left to right. 
+			// But, if there are procedure arguments, a quirk of the parser is
+			// that an empty argument is reported in the place of each procedure
+			// argument in sequence with any value arguments.
+			// So, match procedures with their empty argument proxies by searching
+			// backwards from the end of the arguments.
+			var argIndex = this.argList.length - 1;
+			while (argIndex >= 0)
+			{
+				if (this.argList[argIndex][0].code == "empty argument")
+					break;
+				argIndex--;
+			}
+				// If there's no empty argument associated with this procedure 
+				// then I've screwed something up (or misunderstood the parser).
+			if (argIndex < 0)
+			{
+				this.errorOutput("Internal error; Procedure " + name + " has no argument list (even an empty one).\n");
+				return;
+			}
+				// If this procedure doesn't return a value, then it's not 
+				// really an argument - it's a new statement. Add it to
+				// a list for appending AFTER the procedure call that
+				// is receiving these arguments.
+			var callDetails = arg[0].argument;
+			if (!callDetails.returnsValue)
+			{
+				callDetails.returnValueRequired = false;
+				if (this.statementsNotArguments == null)
+					this.statementsNotArguments = new Array();
+				this.statementsNotArguments.unshift(arg);
+					// Now remove everything associated with this
+					// procedure from the argument list.
+					// (These arguments will already have been added to the
+					// procedure's call details.
+				this.argList.splice(argIndex, this.argList.length - argIndex);
+			}
+			else
+			{
+					// It returns a value so should take its place in the
+					// argument list.
+				this.argList[argIndex] = arg;
+			}
+		}
+		else
+		{
+			//this.output("addArgument(" + arg[arg.length-1].asAssembly() + ")");
+			this.argList.push(arg);		
+			//this.argList = this.argList.concat(arg);
+		}
 	};
+	
+//------------------------------------------------------------------------------
+// An empty argument appears to be produced whenever a procedure name is
+// encountered in the left to right parsing of a procedure call.  I'm using this 
+// to work out the sequence of arguments to a procedure, because the parser 
+// reports the adding of the actual procedure names AFTER all of the value 
+// arguments have been reported. I can't see way (other than what I've 
+// discovered here) to work out the full sequence of arguments including other
+// procedure calls.
+//------------------------------------------------------------------------------	
+BabuinoBackEnd.prototype.addEmptyArgument =
+	function (arg)
+	{
+		if (this.currentPass != 2)
+			return;
+		if (this.argList == null)
+			this.argList = new Array();
+		var call = new VmCode(0, "empty argument" );
+		this.argList.push([call]);
+	};	
 
 BabuinoBackEnd.prototype.clearArguments =
 	function ()
@@ -1312,30 +1511,9 @@ function trace(str)
 	"send"
 	"serial"
 	"newserial\?"					NewSerial
-	"sum"
-	"difference"
-	"product"
-	"quotient"
-	"modulo"
-	"\["
-	"\]"
 	";"
-	"="
-	"<>"
-	"<="
-	">="
-	">"
-	"<"
-	"\+"
-	"\-"
-	"/"
-	"\*"
-	"%"
-	"\("
-	"\)"
 	"#"
 	","
-	"^"						SOL
 	"sensor"
 	"sensor[1-8]"					Sensorn	
 	"switch"
@@ -1349,6 +1527,10 @@ function trace(str)
 																	   %match = %match.replace( /''/g, "\'" );		*]
 	"-?[0-9]+"						Integer
 	"-?[0-9]+\.[0-9]*|[0-9]*\.[0-9]+"	Float
+	"\["
+	"\]"
+	"\("
+	"\)"
 	;
 
 /~ Operators to be used in expressions ~/
@@ -1360,16 +1542,23 @@ function trace(str)
 	"<"
 	;
 <	"\+"
+	"sum"
 	"\-"
+	"difference"
 	;
 <	"/"
+	"quotient"
 	"\*"
+	"product"
+	"%"
+	"modulo"
 	;
 <   "not"
 	"and"
 	"or"
 	"xor"
 	;
+
 
 ##
 
@@ -1379,23 +1568,31 @@ Program:		Program Stmt										[* if (%2 !== undefined && %2 != null)
 																	   } *]
 				|
 				;
+				
+Block:			'[' Block_Stmt_List ']'									[* %% = bbe.compileCurrentBlock(); *]
+				;
+
+
+Block_Stmt:		Stmt 
+				|
+				;
+				
+Block_Stmt_List:		Block_Stmt_List Block_Stmt										[* bbe.addToBlock(%2); *]
+				|
+				;				
 		
-Proc_Stmt_List:	Proc_Stmt_List Stmt									[* bbe.addToProc(%2); *]
+Proc_Stmt_List:	Proc_Stmt_List Proc_Stmt									[* bbe.addToProc(%2); *]
 				|
 				;
 				
-Stmt_List:		Stmt_List Stmt										[* bbe.addToBlock(%2); *]
-				|
-				;
-				
-Arg_List:		Arg_List AddSubExp									[* bbe.addArgument(%2);*]								
-				|
-				;
+Proc_Stmt:		Stmt 
+				| 
+				;					
 				
 Param_List:		Param_List Param									[* bbe.addParameter(%2); *]
 				|
 				;
-
+				
 Param:			Identifier | Reporter								
 				|
 				;
@@ -1403,11 +1600,15 @@ Param:			Identifier | Reporter
 ProcDef:		to Identifier Param_List Proc_Stmt_List end			[* bbe.addProcedureDefinition(%2); *]
 				;
 				
-ProcCall:		Identifier Arg_List									[* %% = %1; /*bbe.compileProcedureCall(%1);*/ *]			
+ProcCall:		Identifier Arg_List										[* %% = %1; *]
 				;
+
+			
+Arg_List:		Arg_List AddSubExp									[* bbe.addArgument(%2);*]									
+				| 													[* bbe.addEmptyArgument();*]
+				;				
 				
-Block:			'[' Stmt_List ']'									[* %% = bbe.compileCurrentBlock(); *]
-				;
+				
 				
 Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| ifelse Expression Block Block 					[* %% = bbe.compileIfElse(%2, %3, %4); *]
@@ -1421,9 +1622,9 @@ Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| goto Identifier									[* %% = bbe.compileGoto(%2);*]
 				| waituntil '[' Expression ']'						[* %% = bbe.compileWaitUntil(%3); *]
 				| ProcDef											
-				| output AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]
+				| output AddSubExp									[* %% = bbe.compileOutput(%2); *]
 				| stop												[* %% = bbe.compileSimpleCommand("return"); *]
-				| ProcCall							        		[* %% = bbe.compileProcedureCall(%1, false); *]
+				| ProcCall									    	[* %% = bbe.compileProcedureCall(%1, false); *]
 				| make Receiver Expression 							[* %% = bbe.compileSetVariable(%2, %3); *]							
 				| wait AddSubExp									[* %% = bbe.compileWait(%2); *]
 				| Motors Motor_cmd 									[* %% = bbe.compileMotorCommand(%1, %2); *]
@@ -1434,7 +1635,7 @@ Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| beep 												[* %% = bbe.compileSimpleCommand(%1); *]
 				| resett 											[* %% = bbe.compileSimpleCommand(%1); *]
 				| random AddSubExp AddSubExp						[* %% = bbe.compileRandomXY(%2, %3); *]
-				| ';'												[*  *]
+				| ';'												[* *]
 				;
 				
 Expression:		Expression '=' AddSubExp							[* %% = bbe.compileExpression(%1, "eq", %3); *]
@@ -1443,6 +1644,7 @@ Expression:		Expression '=' AddSubExp							[* %% = bbe.compileExpression(%1, "e
 				| Expression '<=' AddSubExp							[* %% = bbe.compileExpression(%1, "le", %3); *]
 				| Expression '>=' AddSubExp							[* %% = bbe.compileExpression(%1, "ge", %3); *]
 				| Expression '<>' AddSubExp							[* %% = bbe.compileExpression(%1, "ne", %3); *]
+				| '(' Expression ')'								[* %% = %2; *]
 				| AddSubExp
 				| LogicExp
 				;
@@ -1473,6 +1675,7 @@ AddSubExp:		AddSubExp '-' MulDivExp								[* %% = bbe.compileExpression(%1, "su
 				| difference AddSubExp MulDivExp					[* %% = bbe.compileExpression(%2, "sub", %3); *]
 				| AddSubExp '+' MulDivExp							[* %% = bbe.compileExpression(%1, "add", %3); *]
 				| sum AddSubExp MulDivExp							[* %% = bbe.compileExpression(%2, "add", %3); *]
+				| '(' AddSubExp ')'									[* %% = %2; *]
 				| MulDivExp
 				;
 				
@@ -1482,6 +1685,7 @@ MulDivExp:		MulDivExp '*' NegExp								[* %% = bbe.compileExpression(%1, "mul",
 				| quotient MulDivExp NegExp							[* %% = bbe.compileExpression(%2, "div", %3); *]
 				| MulDivExp '%' NegExp								[* %% = bbe.compileExpression(%1, "mod", %3); *]
 				| modulo MulDivExp NegExp							[* %% = bbe.compileExpression(%2, "mod", %3); *]
+				| '(' MulDivExp ')'									[* %% = %2; *]
 				| NegExp
 				;
 				
@@ -1489,6 +1693,7 @@ LogicExp:		not LogicExp	    &'*'							[* %% = bbe.compileArgCommand(%1, %2); *]
 				| and LogicExp LogicExp								[* %% = bbe.compileExpression(%2, %1, %3); *]
 				| or LogicExp LogicExp								[* %% = bbe.compileExpression(%2, %1, %3); *]
 				| xor LogicExp LogicExp								[* %% = bbe.compileExpression(%2, %1, %3); *]
+				| '(' LogicExp ')'									[* %% = %2; *]
 				| Value
 				;
 				
@@ -1499,7 +1704,6 @@ NegExp:			'-' Value		&'*'								[* %% = (%2).concat(bbe.compileUnaryMinus()); *
 Value:			Integer												[* %% = bbe.compileInteger(%1); *]
 				| Float												[* *]
 				| Reporter											[* %% = bbe.compileGetVariable(%1); *]
-				| '[' Expression ']'								[* %% = %2; *]
 				| timer												[* %% = bbe.compileSimpleCommand(%1); *]
 				| random											[* %% = bbe.compileSimpleCommand(%1); *]
 				| true												[* %% = bbe.compileByte(-1, "=true"); *]
@@ -1512,7 +1716,7 @@ Value:			Integer												[* %% = bbe.compileInteger(%1); *]
 				| NewSerial AddSubExp								[* %% = bbe.compileArgCommand("newserialn?", %2); *]
 				| serial											[* %% = bbe.compileSimpleCommand(%1); *]
 				| NewSerial											[* %% = bbe.compileSimpleCommand(%1); *]
-				| ProcCall							        		[* %% = bbe.compileProcedureCall(%1, true);*]
+				| ProcCall			  								[* %% = bbe.compileProcedureCall(%1, true);*]
 				;
 			
 [*

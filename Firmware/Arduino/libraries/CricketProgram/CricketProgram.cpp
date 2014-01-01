@@ -73,7 +73,7 @@ CricketProgram::loop()
 			_address.highByte = eepromReadByte(0x01F0); // TO DO: get this EEPROM address in a portable way
 			_address.lowByte = eepromReadByte(0x01F1); // TO DO: get this EEPROM address in a portable way
 			_stack.reset();
-			_lstack.reset();
+			//_lstack.reset();
 			code_exec();
 				// Turn Motors off
 			_motors.off();
@@ -94,7 +94,18 @@ CricketProgram::run()
 	}
 	return 0;
 }
-
+/*
+void 
+CricketProgram::print_stack() 
+{
+	Serial.println("--stack--");
+	for (int i = 0; i < _stack._top; i++)
+	{
+		Serial.println(_stack.get(i));
+	}
+	Serial.println("--end stack--");
+}
+*/
 //------------------------------------------------------------------------------
 // An adaptation of a function of the same name in the original Babuino code.
 //------------------------------------------------------------------------------
@@ -113,7 +124,10 @@ CricketProgram::doComm()
 			// The Cricket host expects all characters to be echoed, because
 			// this was done by the infrared device used for communication
 			// with the Cricket robot.
-		char temp = serialRead();
+		char temp;
+		if (!serialRead(&temp))
+			continue;			// The timeout of serialRead will prevent this
+								// being a tight loop.
 		serialWrite(temp);
 		
 		if(_states.isWaitingCmd())
@@ -231,11 +245,14 @@ CricketProgram::doComm()
 void
 CricketProgram::code_exec()
 {
-	int temp1, temp2, temp3;
-	int localFlag = 0;		// currently used only for WAITUNTIL
+	int  temp1, temp2, temp3, temp4, temp5, temp6;
+	char chTemp;
+	int  localFlag = 0;		// currently used only for WAITUNTIL
 							// 0 => initial entry
 	char opcode = 0;
-
+	int  argsLocation = -1;
+	int  localsLocation = -1;
+	
 	while (_states.getRunRequest() == RUNNING)
 	{
 		opcode = eepromReadByte((int)_address);
@@ -247,11 +264,13 @@ CricketProgram::code_exec()
 		switch (opcode)
 		{
 			case OP_BYTE:
-				_stack.push(eepromReadByte((int)_address));
+				temp1 = eepromReadByte((int)_address);
+				//Serial.println("b");
+				//Serial.println(temp1);
+				_stack.push(temp1);
 				++_address;
 				break;
 
-//==================== Added 1/11/10 ===============================
 			case OP_NUMBER:
 				temp1 = eepromReadByte((int)_address);  // MSB
 				++_address;
@@ -260,14 +279,22 @@ CricketProgram::code_exec()
 				temp3 = (temp1<<8) + (temp2&255);
 				_stack.push(temp3);
 				break;
-//====================End of Add ===================================
-			case OP_LIST:
+				
+			case OP_BLOCK:
 				_stack.push((int)_address + 1);
 				temp1 = eepromReadByte((int)_address);
 				_address += temp1;
 				break;
+				
+			case OP_DO:
+				// OP_DO is like OP_BLOCK except that execution falls through to
+				// the top of the block of code unconditionally rather than jump 
+				// to the end where some condition is tested.
+				_stack.push((int)_address + 1); // As per OP_LIST
+				 
+				break;
 
-			case OP_EOL:
+			case OP_EOB:
 //	20090919	address++;
 				break;
 
@@ -276,24 +303,108 @@ CricketProgram::code_exec()
 				break;
 
 			case OP_LTHING:
-				_stack.push(_lstack.at((int)eepromReadByte((int)_address)));
+				//_stack.push(_lstack.get((int)eepromReadByte((int)_address)));
 				++_address;
 				break;
+				
+			case OP_PUSH:
+				temp1 = _stack.pop();	// Amount to allocate
+				_stack.pushn(temp1);	//Allocate it
+				break;
+			
+			case OP_POP:
+				//Serial.println("-pop-");
+				//Serial.println(_address.asShort);
+				//Serial.println(_stack._top);
+				temp1 = _stack.pop();	// Amount to clear
+				_stack.popn(temp1);		//Clear the stack
+				//Serial.println(temp1);
+				//Serial.println(_stack._top);
+				break;
+				
+			case OP_ENTER:
+				temp1 = _stack.pop();	// Amount to allocate for locals
+				_stack.push(localsLocation); // Save locals location for calling function
+				localsLocation = _stack._top;
+				_stack.pushn(temp1);	//Allocate space for locals
+				break;
+			
+			case OP_LEAVE:
+					//Unwind the stack to before the local variables that were added
+				_stack._top = localsLocation;
+				localsLocation = _stack.pop();	// Restore the caller's locals location
+				break;
+				
+			case OP_CALL:
+				//Serial.println("-call-");
+				//print_stack();
+				//Serial.println(_address.asShort);
+				//Serial.println(_stack._top);
+				temp1 = _stack.pop();			// Get the function location 
+				_stack.push(argsLocation);		// Save the args location used by the calling function
+				argsLocation = _stack._top - 1;	// Set the args location for use by the called function
+				//Serial.println(argsLocation);
+				_stack.push(_address.asShort);	// Save the current code location for the return
+				_address.asShort = temp1;		// Now jump to the function
+				//Serial.println(temp1);
+				break;
 
-			case OP_STOP:
-				_address.asShort = _stack.pop();
-				_lstack.reset();
+			case OP_STOP:	// ie. return
+				//Serial.println("-return-");
+				//print_stack();
+				//Serial.println(_address.asShort);
+				//Serial.println(_stack._top);
+				_address.asShort = _stack.pop();	// Get the return address
+				//Serial.println(_address.asShort);
+				argsLocation = _stack.pop();		// Restore the param location for the calling function
+				//_lstack.reset();
 				if (_address < 0)	// stack has underflowed
 					_states.setRunRequest(STOPPED);
 				break;
 
 			case OP_OUTPUT:
-				temp1 = _stack.pop();
-				_address.asShort = _stack.pop();
-				_lstack.reset();
-				_stack.push(temp1);
+					// Space should have been allocated on the stack at the
+					// end of the argument list for the return value. (This
+					// means that the return value is lower on the stack)
+					// If the number of arguments is zero, then the argsLocation
+					// place on the stack has actually been taken by the return
+					// value placeholder (and the zero it its initial value).
+				//Serial.println("-output-");
+				//print_stack();
+				//Serial.println(_stack._top);
+				temp1 = _stack.pop();	// temp1 = the return value
+				temp2 = _stack.get(argsLocation); // temp2 = number of args
+				//Serial.println(temp1);
+				//Serial.println(temp2);
+				//Serial.println(argsLocation);
+					// if the number of args is greater than zero, then the
+					// numArgs location is real and needs to be stepped past.
+				if (temp2 > 0)
+					temp2++;
+				_stack.set(argsLocation - temp2, temp1);
 				break;
-
+				
+			case OP_GETPARAM:
+				//Serial.println("-getparam-");
+				//Serial.println(_address.asShort);
+				//Serial.println(_stack._top);
+				//Serial.println(argsLocation);
+				temp1 = _stack.pop();	// Arg index
+					// Index backwards through the stack (skipping the arg count)
+				temp2 = _stack.get(argsLocation - (1+temp1)); // Get the param
+				//Serial.println(temp1);
+				//Serial.println(temp2);
+				_stack.push(temp2);
+				break;
+			
+			case OP_WHILE:
+				temp1 = _stack.pop(); // result of condition expression
+				if (temp1) // if true then get the block start address
+					_address.asShort = _stack.top();	
+				else
+					_stack.pop();	// else dispose of the block start address
+				break;
+				
 			case OP_REPEAT:
 				temp1 = _stack.pop(); // temp1 = list initial address
 				temp2 = _stack.pop(); // temp2 = argument to test
@@ -305,7 +416,60 @@ CricketProgram::code_exec()
 					_stack.push(temp1);
 				}
 				break;
-
+				
+			case OP_FOR:
+				{
+					//Serial.println("--");
+					//Serial.println(_stack._top);
+					temp1 = _stack.pop(); // temp1 = Address of top of block
+					temp2 = _stack.pop(); // temp2 = step 
+					temp3 = _stack.pop(); // temp3 = to
+					temp4 = _stack.pop(); // temp4 = from
+					temp5 = _stack.pop(); // temp5 = index of counter variable
+					
+					//Serial.println(temp1);
+					//Serial.println(temp2); 
+					//Serial.println(temp3); 
+					//Serial.println(temp4);
+					//Serial.println(temp5);
+						// Test msb of counter index to see if this is the
+						// first iteration.
+					bool firstTime = (temp5 & 128) == 128;	
+					if (firstTime)
+					{
+						temp5 &= ~128;
+						temp6 = temp4;	// Counter = from
+					}
+					else
+					{	
+						temp6 = _temporaries[temp5];
+						temp6 += temp2; // Increment counter
+					}
+					_temporaries[temp5] = temp6;
+					//Serial.println(temp6);
+					//Serial.println(",");
+					//Serial.println(temp1);
+					//Serial.println(temp2); 
+					//Serial.println(temp3); 
+					//Serial.println(temp4); 
+					//Serial.println(temp5);
+						// If step > 0 then assume from < to else assume from > to
+					bool keepGoing = (temp2 > 0) ? (temp6 <= temp3) : (temp6 >= temp3);
+					if (keepGoing || firstTime)
+					{
+						_address.asShort = temp1; // reiterate
+						_stack.push(temp5);
+						_stack.push(temp4);
+						_stack.push(temp3);
+						_stack.push(temp2);
+						_stack.push(temp1);
+						
+					}
+					//Serial.println(_stack._top);
+					//Serial.println("--");
+				}
+				
+				break;
 
 
 			case OP_IF:
@@ -354,6 +518,8 @@ CricketProgram::code_exec()
 
 			case OP_BEEP:
 				//lcd.print("Beep!          ");
+				//Serial.println("-beep-");
+				//Serial.println(_address.asShort);
 				beep();
 				break;
 
@@ -414,8 +580,10 @@ CricketProgram::code_exec()
 
 // ================== BEGIN UPDATE 20100519 ========================
 			case OP_IR:
-				temp1 = serialRead();
-				_stack.push(temp1);
+				if (serialRead(&chTemp))
+					_stack.push((int)chTemp);
+				else
+					_stack.push(-1);	// Hmmm... not satisfactory
 				delay(100);
 				break;
 
@@ -499,19 +667,28 @@ CricketProgram::code_exec()
 				_stack.push((temp1 ^ temp2));
 				break;
 
-
 			case OP_NOT:
 				_stack.push(temp1 = !_stack.pop());
 				break;
 
 			case OP_SETGLOBAL:
-				temp1 = _stack.pop();	// Value of variable
-				temp2 = _stack.pop();	// Location of variable
-				_variables[temp2] = temp1;
+				temp1 = _stack.pop();	// Location of variable
+				temp2 = _stack.pop();	// Value of variable
+				_globals[temp1] = temp2;
 				break;
 
 			case OP_GLOBAL:
-				_stack.push(_variables[_stack.pop()]);
+				_stack.push(_globals[_stack.pop()]);
+				break;
+				
+			case OP_SETTEMP:
+				temp1 = _stack.pop();	// Location of variable
+				temp2 = _stack.pop();	// Value of variable
+				_temporaries[temp1] = temp2;
+				break;
+
+			case OP_GETTEMP:
+				_stack.push(_temporaries[_stack.pop()]);
 				break;
 /*
 			case RECORD:
@@ -546,6 +723,11 @@ CricketProgram::code_exec()
 			break;
 
 */
+			case OP_TALK_TO_MOTORS:
+				temp1 = _stack.pop();
+				_selectedMotors = (Motors::Selected)temp1;
+				break;
+				
 			case OP_SEL_A:
 				_selectedMotors = Motors::MOTOR_A;
 				break;
@@ -558,51 +740,42 @@ CricketProgram::code_exec()
 
 
 			case OP_THISWAY:
-				temp1 = _stack.pop();	// Motor selection
-				_motors.setDirection((Motors::Selected)(temp1), MotorBase::THIS_WAY);
+				_motors.setDirection(_selectedMotors, MotorBase::THIS_WAY);
 				break;
 
 
 			case OP_THATWAY:
-				temp1 = _stack.pop();	// Motor selection
-				_motors.setDirection((Motors::Selected)(temp1), MotorBase::THAT_WAY);
-
+				_motors.setDirection(_selectedMotors, MotorBase::THAT_WAY);
 				break;
 
 			case OP_RD:
-				temp1 = _stack.pop();	// Motor selection
-				_motors.reverseDirection((Motors::Selected)(temp1));
+				_motors.reverseDirection(_selectedMotors);
 				break;
 				
 			case OP_SETPOWER:
-				temp1 = _stack.pop();	// Motor selection
-				temp2 = _stack.pop(); 
-				if (temp2 > 7)	
-					temp2 = 7;
-				_motors.setPower((Motors::Selected)(temp1), (byte)temp2);
+				temp1 = _stack.pop();
+				if (temp1 > 7)	
+					temp1 = 7;
+				_motors.setPower(_selectedMotors, (byte)temp1);
 				break;
 
 
 			case OP_BRAKE:
-				temp1 = _stack.pop();	// Motor selection
-				_motors.setBrake((Motors::Selected)(temp1), MotorBase::BRAKE_ON);
+				_motors.setBrake(_selectedMotors, MotorBase::BRAKE_ON);
 				break;
 
 			case OP_ON:
-				temp1 = _stack.pop();	// Motor selection
-				_motors.on((Motors::Selected)(temp1));
+				_motors.on(_selectedMotors);
 				break;
 
 			case OP_ONFOR:
-				temp1 = _stack.pop();	// Motor selection
-				_motors.on((Motors::Selected)(temp1));
+				_motors.on(_selectedMotors);
 				delay(100*_stack.pop());
-				_motors.off((Motors::Selected)(temp1));
+				_motors.off(_selectedMotors);
 				break;
 
 			case OP_OFF:
-				temp1 = _stack.pop();	// Motor selection
-				_motors.off((Motors::Selected)(temp1));
+				_motors.off(_selectedMotors);
 				break;
 			
 /* Only two motors supported at present unfortunately
@@ -674,9 +847,7 @@ CricketProgram::code_exec()
 				break;
 
 			case OP_STOP1:
-
 				_states.setRunRequest(STOPPED);
-//				commStatus = COMM_IDLE;
 				break;
 
 /*
@@ -721,37 +892,8 @@ CricketProgram::code_exec()
 				userLed(false);
 				break;
 				
-			case 90:	// This comes after every motor command for some reason.
-				break;	// Want to catch it so we don't get the default beep.
-
 			default:
-					// I think Procedure Call should go here?
-					/* Experimental Move into Switch*/
-				if ((temp1 = opcode & 0x80))
-				{
-					_stack.push((int)_address+1);
-					_address.asShort = ((opcode & 0x7F) + eepromReadByte((int)_address));
-		//			arg_num = code[address];
-		//			temp2 = arg_num;
-					temp2 = eepromReadByte(_address);
-					if (temp2)			// handles proc arguments if any
-					{
-						temp1 = _stack.pop();
-						while (temp2)
-						{
-							_lstack.push(_stack.pop());
-							temp2--;
-						}
-						_stack.push(temp1); 
-					}
-					++_address;
-					temp2 = (int)_address;
-				}
-		/** End Experiment */
-				else
-				{
-					beep();	// let's get an indication for now.
-				}
+				beep();	// let's get an indication for now.
 				break;
 
 		}
