@@ -62,12 +62,13 @@ function TagAddress(name, address)
 	this.index = address;
 }
 
-function ProcedureCall(name, args, returnsValue, returnValueRequired)
+function ProcedureCall(name, args, returnsValue, returnValueRequired, parserSeesArgList)
 {
 	this.name = name;
 	this.argList = args;
 	this.returnsValue = returnsValue;
 	this.returnValueRequired = returnValueRequired;
+	this.parserSeesArgList = parserSeesArgList;
 }
 
 function ProcedureDefinition(name, parameters, statements)
@@ -955,7 +956,7 @@ BabuinoBackEnd.prototype.printCodes =
 	};
 
 BabuinoBackEnd.prototype.compileProcedureCall =
-	function (name, returnValueRequired)
+	function (name, returnValueRequired, parserSeesArgList)
 	{
 		if (this.currentPass != 2)
 			return null;
@@ -980,7 +981,7 @@ BabuinoBackEnd.prototype.compileProcedureCall =
 		*/
 		var args = null;
 		var appendStatementsThatWereArguments = false;
-		if (procDef.parameters != null && this.argList != null)
+		if (procDef.parameters != null && this.argList != null && parserSeesArgList)
 		{
 			args = null;
 				// Find the last "empty argument". This will correspond to the
@@ -1034,7 +1035,7 @@ BabuinoBackEnd.prototype.compileProcedureCall =
 		}
 		
 		//this.output("}\n");
-		var callDetails = new ProcedureCall(name, args, procDef.returnsValue, returnValueRequired);
+		var callDetails = new ProcedureCall(name, args, procDef.returnsValue, returnValueRequired, parserSeesArgList);
 		var call = new VmCode(1, "call placeholder(" + name + ")" );
 		call.argument = callDetails;
 
@@ -1330,27 +1331,33 @@ BabuinoBackEnd.prototype.addArgument =
 			// But, if there are procedure arguments, a quirk of the parser is
 			// that an empty argument is reported in the place of each procedure
 			// argument in sequence with any value arguments.
+			// ERRATA: ProcCallNoArg now means that an empty argument might not be
+			// added.
 			// So, match procedures with their empty argument proxies by searching
 			// backwards from the end of the arguments.
-			var argIndex = this.argList.length - 1;
-			while (argIndex >= 0)
+			var argIndex = -1;
+			var callDetails = arg[0].argument;
+			if (callDetails.parserSeesArgList)
 			{
-				if (this.argList[argIndex][0].code == "empty argument")
-					break;
-				argIndex--;
-			}
-				// If there's no empty argument associated with this procedure 
-				// then I've screwed something up (or misunderstood the parser).
-			if (argIndex < 0)
-			{
-				this.errorOutput("Internal error; Procedure " + name + " has no argument list (even an empty one).\n");
-				return;
+				argIndex = this.argList.length - 1;
+				while (argIndex >= 0)
+				{
+					if (this.argList[argIndex][0].code == "empty argument")
+						break;
+					argIndex--;
+				}
+					// If there's no empty argument associated with this procedure 
+					// then I've screwed something up (or misunderstood the parser).
+				if (argIndex < 0)
+				{
+					this.errorOutput("Internal error; Procedure " + name + " has no argument list (even an empty one).\n");
+					return;
+				}
 			}
 				// If this procedure doesn't return a value, then it's not 
 				// really an argument - it's a new statement. Add it to
 				// a list for appending AFTER the procedure call that
 				// is receiving these arguments.
-			var callDetails = arg[0].argument;
 			if (!callDetails.returnsValue)
 			{
 				callDetails.returnValueRequired = false;
@@ -1361,13 +1368,21 @@ BabuinoBackEnd.prototype.addArgument =
 					// procedure from the argument list.
 					// (These arguments will already have been added to the
 					// procedure's call details.
-				this.argList.splice(argIndex, this.argList.length - argIndex);
+				if (callDetails.parserSeesArgList)
+					this.argList.splice(argIndex, this.argList.length - argIndex);
 			}
 			else
 			{
 					// It returns a value so should take its place in the
 					// argument list.
-				this.argList[argIndex] = arg;
+					// If the parser didn't see an argument list, then it would
+					// not have added an empty argument that would have given
+					// us a place to put the procedure call. In that case the
+					// call should just go to the end of the argument list.
+				if (callDetails.parserSeesArgList)
+					this.argList[argIndex] = arg;
+				else
+					this.argList.push(arg);
 			}
 		}
 		else
@@ -1596,6 +1611,10 @@ Param_List:		Param_List Param									[* bbe.addParameter(%2); *]
 Param:			Identifier | Reporter								
 				|
 				;
+
+Arg_List:		Arg_List AddSubExp									[* bbe.addArgument(%2);*]									
+				| 													[* bbe.addEmptyArgument();*]
+				;
 				
 ProcDef:		to Identifier Param_List Proc_Stmt_List end			[* bbe.addProcedureDefinition(%2); *]
 				;
@@ -1603,12 +1622,8 @@ ProcDef:		to Identifier Param_List Proc_Stmt_List end			[* bbe.addProcedureDefin
 ProcCall:		Identifier Arg_List										[* %% = %1; *]
 				;
 
-			
-Arg_List:		Arg_List AddSubExp									[* bbe.addArgument(%2);*]									
-				| 													[* bbe.addEmptyArgument();*]
-				;				
-				
-				
+ProcCallNoArg:	Identifier 												[* %% = %1; *]
+				;
 				
 Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| ifelse Expression Block Block 					[* %% = bbe.compileIfElse(%2, %3, %4); *]
@@ -1624,7 +1639,8 @@ Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| ProcDef											
 				| output AddSubExp									[* %% = bbe.compileOutput(%2); *]
 				| stop												[* %% = bbe.compileSimpleCommand("return"); *]
-				| ProcCall									    	[* %% = bbe.compileProcedureCall(%1, false); *]
+				| ProcCall									    	[* %% = bbe.compileProcedureCall(%1, false, true); *]
+				| ProcCallNoArg								    	[* %% = bbe.compileProcedureCall(%1, false, false); *]
 				| make Receiver Expression 							[* %% = bbe.compileSetVariable(%2, %3); *]							
 				| wait AddSubExp									[* %% = bbe.compileWait(%2); *]
 				| Motors Motor_cmd 									[* %% = bbe.compileMotorCommand(%1, %2); *]
@@ -1716,7 +1732,8 @@ Value:			Integer												[* %% = bbe.compileInteger(%1); *]
 				| NewSerial AddSubExp								[* %% = bbe.compileArgCommand("newserialn?", %2); *]
 				| serial											[* %% = bbe.compileSimpleCommand(%1); *]
 				| NewSerial											[* %% = bbe.compileSimpleCommand(%1); *]
-				| ProcCall			  								[* %% = bbe.compileProcedureCall(%1, true);*]
+				| ProcCall			  								[* %% = bbe.compileProcedureCall(%1, true, true);*]
+				| ProcCallNoArg			  							[* %% = bbe.compileProcedureCall(%1, true, false);*]
 				;
 			
 [*
