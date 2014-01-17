@@ -1,6 +1,21 @@
 #ifndef __CONFIGDEFS_H__
 #define __CONFIGDEFS_H__
+/* -----------------------------------------------------------------------------
+   Copyright 2014 Murray Lang
 
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+   -----------------------------------------------------------------------------
+ */
 //------------------------------------------------------------------------------
 // Use these defines to specify the basic hardware.
 // Uncomment the definition(s) that apply.
@@ -39,10 +54,11 @@
 #define PIN_H_MOTOR_B_PWM    3		// PORTD pin 3 is Arduino digital pin 3 for ATMEGA168/328
 
 
-#define STACK_SIZE 32
+#define STACK_SIZE 48
 #define LSTACK_SIZE 4
 
-#define MAX_VARIABLES 16
+#define MAX_GLOBALS 16
+#define MAX_TEMPORARIES 8
 
 #define LED_INTERVAL_RUN	 200
 #define LED_INTERVAL_IDLE	1000

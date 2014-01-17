@@ -1,5 +1,5 @@
-#ifndef __SERIALSTREAM_H__
-#define __SERIALSTREAM_H__
+#ifndef __GOGOHANDLER__
+#define __GOGOHANDLER__
 /* -----------------------------------------------------------------------------
    Copyright 2014 Murray Lang
 
@@ -16,27 +16,29 @@
    limitations under the License.
    -----------------------------------------------------------------------------
  */
-#define DECLARE_SERIAL_STREAM(strm)				\
-	inline byte serialAvailable()				\
-	{											\
-		return strm.available();				\
-	}											\
-												\
-	inline bool serialRead(char* pChar)			\
-	{											\
-		char buf[1];							\
-		char rc = strm.readBytes(buf, 1);		\
-		if (rc > 0)								\
-		{										\
-			*pChar = buf[0];					\
-			return true;						\
-		}										\
-		return false;							\
-	}											\
-												\
-	inline char serialWrite(char val)			\
-	{											\
-		return strm.write(val);					\
-	}
+enum eGogoCommands
+{
+	gogoHeader0			= 0x54,
+	gogoHeader1			= 0xFE,
+	gogoAck0			= 0x55,
+	gogoAck1			= 0xFF,
+	gogoMotorControl	= 2,
+	gogoSetMotorControl	= 3,
+	gogoTalkToMotor		= 4,
+	gogoSetBurstMode	= 5,
+	gogoMiscControls	= 6,
+	gogoExtendedCmd		= 7
+};
 
-#endif // __SERIALSTREAM_H__
+enum eGogoMotorParms
+{
+	gogoMotorOn			= 0,
+	gogoMotorOff		= 1,
+	gogoMotorReverse	= 2,
+	gogoMotorThisWay	= 3,
+	gogoMotorThatWay	= 4,
+	gogoMotorCoast		= 5
+};
+
+
+#endif //__GOGOHANDLER__
