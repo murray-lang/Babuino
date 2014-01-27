@@ -28,6 +28,7 @@
 //------------------------------------------------------------------------------
 #include "Arduino.h"
 
+#define DEFAULT_POWER 7
 	
 class MotorBase
 {
@@ -48,6 +49,12 @@ public:
 public:
 	MotorBase()
 	{
+		_state.on        = false;
+		_state.direction = THIS_WAY;
+		_state.brake     = BRAKE_OFF;
+		_state.reverse   = false;
+		_state.power     = DEFAULT_POWER;
+		_state.applied   = false;
 	}
 	
 	inline void on(bool applyNow = true)
@@ -58,6 +65,7 @@ public:
 		{
 			applyPower();
 			applyBrake();
+			applyDirection();
 		}
 		else
 			_state.applied = false;
@@ -180,7 +188,7 @@ protected:
 	class Motor_##name	: public MotorBase						\
 	{															\
 	public:														\
-		Motor_##name()											\
+		Motor_##name() : MotorBase()							\
 		{														\
 			_state.reverse = rev;								\
 		}														\
@@ -223,7 +231,7 @@ protected:
 	class Motor_##name	: public MotorBase						\
 	{															\
 	public:														\
-		Motor_##name()											\
+		Motor_##name()  : MotorBase()							\
 		{														\
 			_state.reverse = rev;								\
 		}														\
@@ -261,6 +269,7 @@ protected:
 			{													\
 				digitalWrite(pin1, HIGH);						\
 				digitalWrite(pin2, HIGH);						\
+			}													\
 		}														\
 	} name;
 	

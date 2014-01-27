@@ -69,8 +69,8 @@ private:
 	MOTOR(_motorA, PIN_MOTOR_A_DIR, PIN_MOTOR_A_PWM, PIN_MOTOR_A_BRAKE, false)
 	MOTOR(_motorB, PIN_MOTOR_B_DIR, PIN_MOTOR_B_PWM, PIN_MOTOR_B_BRAKE, false)
 #elif defined _MOTORS_H_BRIDGE_ || defined _BOARD_BABUINO_ 	
-	MOTOR(_motorA, PIN_H_MOTOR_A_1, PIN_H_MOTOR_A_2, PIN_H_MOTOR_A_PWM, false)
-	MOTOR(_motorB, PIN_H_MOTOR_B_1, PIN_H_MOTOR_B_2, PIN_H_MOTOR_B_PWM, false)
+	H_MOTOR(_motorA, PIN_H_MOTOR_A_1, PIN_H_MOTOR_A_2, PIN_H_MOTOR_A_PWM, false)
+	H_MOTOR(_motorB, PIN_H_MOTOR_B_1, PIN_H_MOTOR_B_2, PIN_H_MOTOR_B_PWM, false)
 #endif	
 };
 #endif //__MOTORS_HPP__
