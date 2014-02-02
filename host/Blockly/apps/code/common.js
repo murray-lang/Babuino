@@ -219,24 +219,50 @@ function renderContent() {
 		// Get Logo code first
 	var code = Blockly.Generator.workspaceToCode('Logo');
     //content.innerHTML = compileLogo(code);
-	var logoTextarea = document.getElementById('textarea_basm');
-    logoTextarea.value = compileLogo(code);
-    logoTextarea.focus();
+	var basmTextarea = document.getElementById('textarea_basm');
+	try
+	{
+		basmTextarea.value = compileLogo(code);
+	}
+	catch (err)
+	{
+		basmTextarea.value = err.message;
+	}
+	basmTextarea.focus();
   }
-  else if (content.id == 'content_out') {
+  else if (content.id == 'content_out') 
+  {
 		// Get Logo code first
 	var code = Blockly.Generator.workspaceToCode('Logo');
-		// Then compile it to assembly
-    var basm = compileLogo(code);
-		// then assemble to cricket codes
-	var cricket = assembleBasm(basm);
-    //content.innerHTML = cricket;
 	var outTextarea = document.getElementById('textarea_out');
-    outTextarea.value = cricket;
+		// Then compile it to assembly
+	var basm;
+	try
+	{
+		basm = compileLogo(code);
+	}
+	catch (logoerr)
+	{
+		outTextarea.value = logoerr.message;
+		consoleTextarea.focus();
+		return;
+	}
+		// then assemble to cricket codes
+	try
+	{
+		var cricket = assembleBasm(basm);
+		//content.innerHTML = cricket;
+		outTextarea.value = cricket;
+	}
+	catch (basmerr)
+	{
+		outTextarea.value = basmerr.message;
+	}
+	outTextarea.focus();
   }
   else if (content.id == 'content_console') {
-	var tempTextarea = document.getElementById('textarea_console');
-    tempTextarea.focus();
+	var consoleTextarea = document.getElementById('textarea_console');
+    consoleTextarea.focus();
   }
 }
 
@@ -319,25 +345,41 @@ function discard() {
 function compileLogo(code)
 {
 	var bsm = "";
+	var err = "";
 	var output = 
 		function (str)
 		{
 			bsm += str;
 		};
+	var errorOutput = 
+		function (str)
+		{
+			err += str;
+		};
 	var bl = new BabuinoLogo();
-	bl.compile(code, output, output);
+	var err_count = bl.compile(code, output, errorOutput);
+	if (err_count >0)
+		throw new Error(err);
 	return bsm;	
 }
 
 function assembleBasm(code)
 {
 	var cricket = "";
+	var err = "";
 	var output = 
 		function (str)
 		{
 			cricket += str + "\n";
 		};
-	as.parse(code, output, output);
+	var errorOutput = 
+		function (str)
+		{
+			err += str;
+		};
+	var err_count = as.parse(code, output, errorOutput);
+	if (err_count >0)
+		throw new Error(err);
 	return cricket;	
 }
 
@@ -405,10 +447,33 @@ function onClickLaunch()
 	tabClick("tab_console");
 		// Get Logo code first
 	var code = Blockly.Generator.workspaceToCode('Logo');
+	
 		// Then compile it to assembly
-    var basm = compileLogo(code);
+	var basm;
+	try
+	{
+		basm = compileLogo(code);
+	}
+	catch (logoerr)
+	{
+		var consoleTextarea = document.getElementById('textarea_console');
+		consoleTextarea.value = logoerr.message;
+		consoleTextarea.focus();
+		return;
+	}
 		// then assemble to cricket codes
-	var cricket = assembleBasm(basm);
+	var cricket;
+	try
+	{
+		cricket = assembleBasm(basm);
+	}
+	catch (basmerr)
+	{
+		var consoleTextarea = document.getElementById('textarea_console');
+		consoleTextarea.value = basmerr.message;
+		consoleTextarea.focus();
+		return;
+	}
 	cricketComms.setData(cricket);
-	cricketComms.start();
+	cricketComms.run();
 }

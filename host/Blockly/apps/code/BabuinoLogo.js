@@ -5003,7 +5003,7 @@ BabuinoLogo.prototype.compile =
 		bbe.currentPass = 1;
 		var error_cnt = this.parse(text);
 		if (error_cnt != 0)
-			return;
+			return error_cnt;
 		//bbe.printProcedureDefinitions();
 		bbe.currentPass = 2;
 		bbe.appendVmCodes([new VmCode(1, "begin", null, null, "Start of mainline")]);
@@ -5055,6 +5055,7 @@ BabuinoLogo.prototype.compile =
 			bbe.printCodes(bbe.globalProcDef.statements);
 			//bbe.printProcedureDefinitions();
 		}
+		return error_cnt;
 	};
 
 /* Uncomment this code to use the compiler in chrome

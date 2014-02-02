@@ -55,6 +55,7 @@ CricketAssembler.prototype.parse =
 		{
 			this.printMachineCodes();
 		}
+		return error_cnt;
 	};
 
 CricketAssembler.prototype.printMachineCodes =

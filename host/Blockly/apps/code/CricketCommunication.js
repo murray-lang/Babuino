@@ -1,3 +1,19 @@
+/*-----------------------------------------------------------------------------
+   Copyright 2014 Murray Lang
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+   -----------------------------------------------------------------------------
+*/   
 //------------------------------------------------------------------------------
 // File: CricketCommunication.js
 // Purpose: Provide serial communications and handshaking to program a Babuino
@@ -14,7 +30,7 @@
 // The class of most interest if trying to understand the code is Sequence.
 // See comments for Sequence below.
 //------------------------------------------------------------------------------ 
-const device = 'COM9';	// Hard-wired for now - sorry
+const device = 'COM9';	
 const serial = chrome.serial;
 const resetTimeout       = 1500;
 const connectTimeout     = 500;
@@ -83,24 +99,24 @@ function bytesToArrayBuffer(bytes)
 // works requires that those functions have knowledge of being in one of these
 // sequences, but they don't have to know their place in that sequence. 
 //------------------------------------------------------------------------------
-function Sequence(context, sequence, repeat, leave)
+function Sequence(sequence, repeat, leave)
 {
-	this.context      = context; // The class of which the functions are members
 	this.currentIndex = 0;
 	this.sequence     = sequence; // The array of functions to call in sequence
 	this.repeat       = repeat;   // True if the sequence is a loop
+	//this.leave        = leave.bind(context);	  // The function that gets us out of here
 	this.leave        = leave;	  // The function that gets us out of here
 }
 
 //------------------------------------------------------------------------------
 // Point to the beginning of the sequence
 //------------------------------------------------------------------------------
-Sequence.prototype.start = 
+Sequence.prototype.run = 
 	function()
 	{
 		this.currentIndex = 0;
 		this.current();
-	}
+	};
 
 //------------------------------------------------------------------------------
 // With this, a function can get a reference to itself!
@@ -109,7 +125,8 @@ Sequence.prototype.start =
 Sequence.prototype.getCurrent = 
 	function()
 	{
-		return this.sequence[this.currentIndex].bind(this.context);
+		//return this.sequence[this.currentIndex].bind(this.context);
+		return this.sequence[this.currentIndex];
 	};
 	
 //------------------------------------------------------------------------------
@@ -127,15 +144,16 @@ Sequence.prototype.getNext =
 			// If we've reached the end then call the leave() function
 		if (i == -1)
 		{	
-			this.leave.bind(this.context);
+			this.leave();
 			return;
 		}
 		if (increment)
 			this.currentIndex = i;
 			
-		return this.sequence[i].bind(this.context);
+		//return this.sequence[i].bind(this.context);
+		return this.sequence[i];
 	};
-
+	
 //------------------------------------------------------------------------------
 // Calculates the next index in the sequence. It's a calculation because the
 // sequence might be a loop.
@@ -195,43 +213,43 @@ function CricketProgrammer(device, normalCallback, errorCallback)
 		// for the existence of the Sequence class.
 	var seq1 = 
 	[
-		this.connectSerial,	    
-		this.connectSerialCallback,
+		this.connectSerial.bind(this),     
+		this.connectSerialCallback.bind(this),
 		
-		this.waitForArduinoReset,						
+		this.wait.bind(this, resetTimeout),	// Wait for the Arduino to reset					
 
-		this.writeCricketCheck,	
-		this.writeCallback, 
-		this.wait,
-		this.readCricketAck,    
-		this.verifyCricketAck,
+		this.writeCricketCheck.bind(this),	
+		this.writeCallback.bind(this), 
+		this.wait.bind(this, connectTimeout),
+		this.readCricketAck.bind(this),    
+		this.verifyCricketAck.bind(this),
 		
-		this.writeStartAddress,
-		this.writeCallback,
-		this.wait,
-		this.readStartAddressReply,
-		this.readStartAddressReplyCallback,
+		this.writeStartAddress.bind(this),
+		this.writeCallback.bind(this),
+		this.wait.bind(this, connectTimeout),
+		this.readStartAddressReply.bind(this),
+		this.readStartAddressReplyCallback.bind(this),
 		
-		this.writeByteCount,
-		this.writeCallback,
-		this.wait,
-		this.readByteCountReply,
-		this.readByteCountReplyCallback,
+		this.writeByteCount.bind(this),
+		this.writeCallback.bind(this),
+		this.wait.bind(this, connectTimeout),
+		this.readByteCountReply.bind(this),
+		this.readByteCountReplyCallback.bind(this),
 		
-		this.transfer,	// This involves another class using another sequence. See below
-		this.transferCallback,
+		this.transfer.bind(this),// This involves another class using another sequence. See below
+		this.transferCallback.bind(this),
 		
-		this.disconnect,
-		this.disconnectCallback
+		this.disconnect.bind(this),
+		this.disconnectCallback.bind(this),
 	];
-	this.mainSequence = new Sequence(this, seq1, false, this.leave);
+	this.mainSequence = new Sequence(seq1, false, this.leave);
 	
 	var seq2 = 
 	[
-		this.disconnect,
-		this.disconnectCallback
+		this.disconnect.bind(this), 
+		this.disconnectCallback.bind(this)
 	];
-	this.cleanupSequence = new Sequence(this, seq2, false, this.leave);
+	this.cleanupSequence = new Sequence(seq2, false, this.leave);
 	
 	this.sequence = this.mainSequence;
 }
@@ -257,10 +275,10 @@ CricketProgrammer.prototype.setData =
 		this.data = new Uint8Array(asInts);
 	};
 	
-CricketProgrammer.prototype.start = 
+CricketProgrammer.prototype.run = 
 	function(data)
 	{
-		this.sequence.start();
+		this.sequence.run();
 	};
 
 
@@ -270,14 +288,27 @@ CricketProgrammer.prototype.cleanup =
 		this.normalCallback("Cleaning up: " + reason);
 		this.errorCallback(reason);
 		this.sequence = this.cleanupSequence;
-		this.sequence.start();
+		this.sequence.run();
 	};
+	
+CricketProgrammer.prototype.leave = 
+	function()
+	{
+		// Do nothing at this stage
+	};	
 
 CricketProgrammer.prototype.connectSerial = 
 	function()
 	{
 		//log("connectSerial()");
-		serial.open(this.device, {bitrate: 9600}, this.sequence.getNext());
+		try
+		{
+			serial.open(this.device, {bitrate: 9600}, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.cleanup("Error opening serial port - " + err.messages);
+		}
 	}
 	
 CricketProgrammer.prototype.connectSerialCallback = 
@@ -299,8 +330,15 @@ CricketProgrammer.prototype.writeCricketCheck =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-		var buf = bytesToArrayBuffer([0x87, 0x00]);
-		serial.write(this.connectionId, buf, this.sequence.getNext());
+		try
+		{
+			var buf = bytesToArrayBuffer([0x87, 0x00]);
+			serial.write(this.connectionId, buf, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.cleanup("Error writing Cricket check - " + err.message);
+		}		
 	};
 
 CricketProgrammer.prototype.writeCallback = 
@@ -311,18 +349,11 @@ CricketProgrammer.prototype.writeCallback =
 		this.sequence.next();
 	};
 
-CricketProgrammer.prototype.waitForArduinoReset = 
-	function() 
-	{
-		//log("wait()");
-		setTimeout(this.sequence.getNext(), resetTimeout);
-	};
-	
 CricketProgrammer.prototype.wait = 
-	function() 
+	function(timeout) 
 	{
 		//log("wait()");
-		setTimeout(this.sequence.getNext(), connectTimeout);
+		setTimeout(this.sequence.getNext(), timeout);
 	};
 	
 CricketProgrammer.prototype.readCricketAck =
@@ -335,7 +366,14 @@ CricketProgrammer.prototype.readCricketAck =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-		serial.read(this.connectionId, 3, this.sequence.getNext());
+		try
+		{
+			serial.read(this.connectionId, 3, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.cleanup("Error reading Cricket acknowledgement - " + err.message);
+		}
 	};
 
 CricketProgrammer.prototype.verifyCricketAck =
@@ -368,8 +406,15 @@ CricketProgrammer.prototype.writeStartAddress =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-		var buf = bytesToArrayBuffer([cmdSetStartAddress, (startAddress >> 8) & 0xff , startAddress & 0xff]);
-		serial.write(this.connectionId, buf, this.sequence.getNext());
+		try
+		{
+			var buf = bytesToArrayBuffer([cmdSetStartAddress, (startAddress >> 8) & 0xff , startAddress & 0xff]);
+			serial.write(this.connectionId, buf, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.cleanup("Error writing start address - " + err.message);
+		}
 	};	
 	
 CricketProgrammer.prototype.readStartAddressReply =
@@ -382,7 +427,14 @@ CricketProgrammer.prototype.readStartAddressReply =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-		serial.read(this.connectionId, 3, this.sequence.getNext());
+		try
+		{
+			serial.read(this.connectionId, 3, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.cleanup("Error reading reply to start address - " + err.message);
+		}
 	};
 
 CricketProgrammer.prototype.readStartAddressReplyCallback =
@@ -400,7 +452,7 @@ CricketProgrammer.prototype.readStartAddressReplyCallback =
 			|| reply[1] != (startAddress >> 8) & 0xff 
 			|| reply[2] != startAddress & 0xff) 
 		{
-			this.cleanup("Unexpected reply from cricket device");
+			this.cleanup("Unexpected reply to start address");
 			return;
 		}
 		this.normalCallback("Start address written successfully!");
@@ -417,9 +469,16 @@ CricketProgrammer.prototype.writeByteCount =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-		var codeLength = this.data.length;
-		var buf = bytesToArrayBuffer([cmdWriteBytes, (codeLength >> 8) & 0xff , codeLength & 0xff]);
-		serial.write(this.connectionId, buf, this.sequence.getNext());
+		try
+		{
+			var codeLength = this.data.length;
+			var buf = bytesToArrayBuffer([cmdWriteBytes, (codeLength >> 8) & 0xff , codeLength & 0xff]);
+			serial.write(this.connectionId, buf, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.cleanup("Error writing byte count - " + err.message);
+		}
 	};	
 	
 CricketProgrammer.prototype.readByteCountReply =
@@ -432,7 +491,14 @@ CricketProgrammer.prototype.readByteCountReply =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-		serial.read(this.connectionId, 3, this.sequence.getNext());
+		try
+		{
+			serial.read(this.connectionId, 3, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.cleanup("Error reading reply to byte count - " + err.message);
+		}
 	};
 
 CricketProgrammer.prototype.readByteCountReplyCallback =
@@ -466,10 +532,10 @@ CricketProgrammer.prototype.transfer =
 		var comms = new CricketCodeTransfer(
 			this.connectionId, 
 			this.data, 
-			this.sequence.getNext(),
+			this.sequence.getNext(),  // When the transfer's finished, go to the next function in the sequence.
 			this.normalCallback,
 			this.errorCallback);
-		comms.start();
+		comms.run();
 	};
 	
 CricketProgrammer.prototype.transferCallback = 
@@ -492,7 +558,14 @@ CricketProgrammer.prototype.disconnect =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-		serial.close(this.connectionId, this.sequence.getNext());
+		try
+		{
+			serial.close(this.connectionId, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.errorCallback("Error closing serial port - " + err.message);
+		}
 		this.connectionId = -1;
 	};
 	
@@ -522,21 +595,21 @@ function CricketCodeTransfer(connectionId, data, returnFunc, normalCallback, err
 		//this Sequence loops through the data and sends it
 	var loop = 
 	[
-		this.writeNextCode,
-		this.writeCallback,
-		this.wait,
-		this.readCodeReply,
-		this.readCodeReplyCallback
+		this.writeNextCode.bind(this),
+		this.writeCallback.bind(this),
+		this.wait.bind(this, byteTimeout),
+		this.readCodeReply.bind(this),
+		this.readCodeReplyCallback.bind(this)
 	];
-	this.sequence = new Sequence(this, loop, true, this.leave);
+	this.sequence = new Sequence(loop, true, this.leave);
 		//The caller wants you to go here when you've finished
 	this.returnFunc = returnFunc;
 }
 
-CricketCodeTransfer.prototype.start = 
+CricketCodeTransfer.prototype.run = 
 	function()
 	{
-		this.sequence.start();
+		this.sequence.run();
 	};
 
 CricketCodeTransfer.prototype.leave = 
@@ -555,9 +628,17 @@ CricketCodeTransfer.prototype.writeNextCode =
 			this.errorCallback("Invalid connection");
 			return;
 		}
-			// Make an ArrayBuffer out of it so that it can be transmitted.
-		var buf = bytesToArrayBuffer([this.data[this.dataIndex]]);
-		serial.write(this.connectionId, buf, this.sequence.getNext());
+		try
+		{
+				// Make an ArrayBuffer out of it so that it can be transmitted.
+			var buf = bytesToArrayBuffer([this.data[this.dataIndex]]);
+			serial.write(this.connectionId, buf, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.errorCallback("Error writing code - " + err.message);
+			this.returnFunc(false);
+		}
 	};
 
 CricketCodeTransfer.prototype.writeCallback = 
@@ -567,16 +648,24 @@ CricketCodeTransfer.prototype.writeCallback =
 	};
 	
 CricketCodeTransfer.prototype.wait = 
-	function() 
+	function(timeout) 
 	{
-		setTimeout(this.sequence.getNext(), byteTimeout);
+		setTimeout(this.sequence.getNext(), timeout);
 	};	
 
 CricketCodeTransfer.prototype.readCodeReply = 
 	function() 
 	{
-			//Reply is two bytes: an echo followed by its bitwise complement
-		serial.read(this.connectionId, 2, this.sequence.getNext());
+		try
+		{
+				//Reply is two bytes: an echo followed by its bitwise complement
+			serial.read(this.connectionId, 2, this.sequence.getNext());
+		}
+		catch (err)
+		{
+			this.errorCallback("Error reading reply to code - " + err.message);
+			this.returnFunc(false);
+		}
 	};
 
 CricketCodeTransfer.prototype.readCodeReplyCallback =
@@ -626,7 +715,7 @@ document.querySelector('button').addEventListener(
 	'click', 
 	function() 
 	{
-		cricket.start();
+		cricket.run();
 	}
 );
 */
