@@ -76,6 +76,66 @@ function bytesToArrayBuffer(bytes)
 	return buf;
 };
 
+function ReceiveBuffer()
+{
+	this.cursor = 0;
+	this.availableBytes = 0;
+	this.buffers = new Array();
+}
+
+ReceiveBuffer.prototype.addData = 
+	function (data)
+	{
+		var bytes = arrayBufferToBytes(data);
+			
+		this.buffers.push(bytes);
+		this.availableBytes += bytes.length;
+	};
+/*	
+ReceiveBuffer.prototype.availableBytes = 
+	function ()
+	{
+		var result = 0;
+		for (var i = 0; i < this.buffers.length; i++)
+			result += this.buffers[i].length;
+		return result;
+	};
+*/	
+ReceiveBuffer.prototype.getData = 
+	function (requiredBytes)
+	{
+		if (requiredBytes > this.availableBytes)
+			throw new Error("Trying to get more bytes than are available in the receive buffer.");
+		var retrievedBytes = 0;	
+		var result = new Uint8Array(requiredBytes);
+		var stillRequired = requiredBytes; 
+		while (stillRequired > 0)
+		{
+			var availableFromFirst = this.buffers[0].length - this.cursor;
+			var requiredFromRest = stillRequired - availableFromFirst;
+			if (requiredFromRest < 0)
+			{
+					// There will be some left over in the first buffer after
+					// the required bytes have been copied.
+				result.set(this.buffers[0].subarray(this.cursor, this.cursor + stillRequired), retrievedBytes);
+				retrievedBytes += stillRequired;
+				this.cursor += stillRequired;
+				
+			}
+			else 
+			{
+					// All of the available bytes in the first buffer are required.
+				result.set(this.buffers[0].subarray(this.cursor), retrievedBytes);
+				retrievedBytes += availableFromFirst;
+				this.cursor = 0;
+				this.buffers.shift();
+			}
+			stillRequired = requiredBytes - retrievedBytes;
+		}
+		this.availableBytes -= retrievedBytes;
+		return result;
+	};	
+
 //------------------------------------------------------------------------------
 // class: Sequence
 // I/O in JavaScript employs an asynchronous paradigm, in which API calls
@@ -207,6 +267,8 @@ function CricketProgrammer(device, normalCallback, errorCallback)
 	
 	this.data = null;
 	this.connectionId = -1;
+	this.onReadEvent = new chrome.Event(); // For the new serial API
+	this.rxBuffer = new ReceiveBuffer();   // ditto
 	
 		// The Cricket programming sequence
 		// Being able to declare the sequence in this way is the reason
@@ -221,20 +283,16 @@ function CricketProgrammer(device, normalCallback, errorCallback)
 		this.writeCricketCheck.bind(this),	
 		this.writeCallback.bind(this), 
 		this.wait.bind(this, connectTimeout),
-		this.readCricketAck.bind(this),    
+		//this.readCricketAck.bind(this),    
 		this.verifyCricketAck.bind(this),
 		
 		this.writeStartAddress.bind(this),
-		this.writeCallback.bind(this),
 		this.wait.bind(this, connectTimeout),
-		this.readStartAddressReply.bind(this),
-		this.readStartAddressReplyCallback.bind(this),
+		this.verifyStartAddressReply.bind(this),
 		
 		this.writeByteCount.bind(this),
-		this.writeCallback.bind(this),
 		this.wait.bind(this, connectTimeout),
-		this.readByteCountReply.bind(this),
-		this.readByteCountReplyCallback.bind(this),
+		this.verifyByteCountReply.bind(this),
 		
 		this.transfer.bind(this),// This involves another class using another sequence. See below
 		this.transferCallback.bind(this),
@@ -295,6 +353,24 @@ CricketProgrammer.prototype.leave =
 	function()
 	{
 		// Do nothing at this stage
+	};
+
+// New methods to deal with the change in the serial API
+CricketProgrammer.prototype.onReceive =
+	function(receiveInfo)
+	{
+		if (receiveInfo.connectionId !== this.connectionId) 
+			return;
+			
+		this.rxBuffer.addData(receiveInfo.data);
+	};
+
+CricketProgrammer.prototype.onReceiveError =
+	function(errorInfo)
+	{
+		if (errorInfo.connectionId !== this.connectionId) 
+			return;
+		
 	};	
 
 CricketProgrammer.prototype.connectSerial = 
@@ -303,11 +379,11 @@ CricketProgrammer.prototype.connectSerial =
 		//log("connectSerial()");
 		try
 		{
-			serial.open(this.device, {bitrate: 9600}, this.sequence.getNext());
+			serial.connect(this.device, {bitrate: 9600}, this.sequence.getNext());
 		}
 		catch (err)
 		{
-			this.cleanup("Error opening serial port - " + err.messages);
+			this.cleanup("Error opening serial port - " + err.message);
 		}
 	}
 	
@@ -317,6 +393,10 @@ CricketProgrammer.prototype.connectSerialCallback =
 		//log("connectSerialCallback()");
 		this.connectionId = connectionInfo.connectionId;
 		this.normalCallback("Opened: " + this.device);
+		
+			// New serial API requires more work
+		chrome.serial.onReceive.addListener(this.onReceive.bind(this));
+		chrome.serial.onReceiveError.addListener(this.onReceiveError.bind(this));
 		this.sequence.next();
 	}
 
@@ -333,7 +413,7 @@ CricketProgrammer.prototype.writeCricketCheck =
 		try
 		{
 			var buf = bytesToArrayBuffer([0x87, 0x00]);
-			serial.write(this.connectionId, buf, this.sequence.getNext());
+			serial.send(this.connectionId, buf, this.sequence.getNext());
 		}
 		catch (err)
 		{
@@ -342,11 +422,20 @@ CricketProgrammer.prototype.writeCricketCheck =
 	};
 
 CricketProgrammer.prototype.writeCallback = 
-	function(writeInfo) 
+	function(sendInfo) 
 	{
+		if (sendInfo.error !== undefined)
+		{
+			this.cleanup("Error writing Cricket check - " + sendInfo.error);
+		}
+		else
+		{
+			this.sequence.next();
+		}
 		//log("writeCallback()");
 		//log("wrote:" + writeInfo.bytesWritten);
-		this.sequence.next();
+		//this.sequence.next(); // Replaced due to new serial API
+		//this.onReadLine.addListener(this.sequence.getNext());
 	};
 
 CricketProgrammer.prototype.wait = 
@@ -355,44 +444,27 @@ CricketProgrammer.prototype.wait =
 		//log("wait()");
 		setTimeout(this.sequence.getNext(), timeout);
 	};
-	
-CricketProgrammer.prototype.readCricketAck =
-	function() 
-	{
-		//log("readCricketAck()");
-			// Only works for open serial ports.
-		if (this.connectionId < 0) 
-		{
-			this.errorCallback("Invalid connection");
-			return;
-		}
-		try
-		{
-			serial.read(this.connectionId, 3, this.sequence.getNext());
-		}
-		catch (err)
-		{
-			this.cleanup("Error reading Cricket acknowledgement - " + err.message);
-		}
-	};
 
 CricketProgrammer.prototype.verifyCricketAck =
 	function(readInfo) 
 	{
 		//log("verifyCricketAck()");
-		if (readInfo.bytesRead < 3)
+		try
 		{
-			this.cleanup("No acknowledgement from cricket device");
+			
+			var reply = this.rxBuffer.getData(3);
+			if (reply[0] != 0x87 || reply[1] != 0x00 || reply[2] != 0x37)
+			{
+				this.cleanup("Invalid acknowledgement from cricket device");
+				return;
+			}
+			this.normalCallback("Connection successful!");
+		}
+		catch (err)
+		{
+			this.cleanup("Error reading acknowledgement from cricket device: " + err.message);
 			return;
 		}
-		var reply = arrayBufferToBytes(readInfo.data);
-		
-		if (reply[0] != 0x87 || reply[1] != 0x00 || reply[2] != 0x37) 
-		{
-			this.cleanup("Invalid acknowledgement from cricket device");
-			return;
-		}
-		this.normalCallback("Connection successful!");
 		this.sequence.next();
 	};
 
@@ -409,53 +481,35 @@ CricketProgrammer.prototype.writeStartAddress =
 		try
 		{
 			var buf = bytesToArrayBuffer([cmdSetStartAddress, (startAddress >> 8) & 0xff , startAddress & 0xff]);
-			serial.write(this.connectionId, buf, this.sequence.getNext());
+			serial.send(this.connectionId, buf, this.sequence.getNext());
 		}
 		catch (err)
 		{
 			this.cleanup("Error writing start address - " + err.message);
 		}
 	};	
-	
-CricketProgrammer.prototype.readStartAddressReply =
-	function() 
-	{
-		//log("readStartAddressReply()");
-			// Only works for open serial ports.
-		if (this.connectionId < 0) 
-		{
-			this.errorCallback("Invalid connection");
-			return;
-		}
-		try
-		{
-			serial.read(this.connectionId, 3, this.sequence.getNext());
-		}
-		catch (err)
-		{
-			this.cleanup("Error reading reply to start address - " + err.message);
-		}
-	};
 
-CricketProgrammer.prototype.readStartAddressReplyCallback =
+CricketProgrammer.prototype.verifyStartAddressReply =
 	function(readInfo) 
 	{
 		//log("readStartAddressReplyCallback()");
-		if (readInfo.bytesRead < 3)
+		try
 		{
-			this.cleanup("Not enough reply bytes");
+			var reply = this.rxBuffer.getData(3);
+			if (   reply[0] != cmdSetStartAddress 
+				|| reply[1] != (startAddress >> 8) & 0xff 
+				|| reply[2] != startAddress & 0xff) 
+			{
+				this.cleanup("Unexpected reply to start address");
+				return;
+			}
+			this.normalCallback("Start address written successfully!");
+		}
+		catch(err)
+		{
+			this.cleanup("Error reading reply to the start address: " + err.message);
 			return;
 		}
-		var reply = arrayBufferToBytes(readInfo.data);
-		
-		if (   reply[0] != cmdSetStartAddress 
-			|| reply[1] != (startAddress >> 8) & 0xff 
-			|| reply[2] != startAddress & 0xff) 
-		{
-			this.cleanup("Unexpected reply to start address");
-			return;
-		}
-		this.normalCallback("Start address written successfully!");
 		this.sequence.next();
 	};	
 
@@ -473,7 +527,7 @@ CricketProgrammer.prototype.writeByteCount =
 		{
 			var codeLength = this.data.length;
 			var buf = bytesToArrayBuffer([cmdWriteBytes, (codeLength >> 8) & 0xff , codeLength & 0xff]);
-			serial.write(this.connectionId, buf, this.sequence.getNext());
+			serial.send(this.connectionId, buf, this.sequence.getNext());
 		}
 		catch (err)
 		{
@@ -481,47 +535,29 @@ CricketProgrammer.prototype.writeByteCount =
 		}
 	};	
 	
-CricketProgrammer.prototype.readByteCountReply =
-	function() 
-	{
-		//log("readByteCountReply()");
-			// Only works for open serial ports.
-		if (this.connectionId < 0) 
-		{
-			this.errorCallback("Invalid connection");
-			return;
-		}
-		try
-		{
-			serial.read(this.connectionId, 3, this.sequence.getNext());
-		}
-		catch (err)
-		{
-			this.cleanup("Error reading reply to byte count - " + err.message);
-		}
-	};
-
-CricketProgrammer.prototype.readByteCountReplyCallback =
+CricketProgrammer.prototype.verifyByteCountReply =
 	function(readInfo) 
 	{
 		//log("readByteCountReplyCallback()");
-		if (readInfo.bytesRead < 3)
+		try
+		{		
+			var codeLength = this.data.length;
+			var reply = this.rxBuffer.getData(3);
+			
+			if (   reply[0] != cmdWriteBytes 
+				|| reply[1] != (codeLength >> 8) & 0xff 
+				|| reply[2] != codeLength & 0xff) 
+			{
+				this.cleanup("Unexpected reply from cricket device");
+				return;
+			}
+			this.normalCallback("Byte count written successfully!");
+		}
+		catch (err)
 		{
-			this.cleanup("Not enough reply bytes");
+			this.cleanup("Error reading reply to the byte count: " + err.message);
 			return;
 		}
-		
-		var codeLength = this.data.length;
-		var reply = arrayBufferToBytes(readInfo.data);
-		
-		if (   reply[0] != cmdWriteBytes 
-			|| reply[1] != (codeLength >> 8) & 0xff 
-			|| reply[2] != codeLength & 0xff) 
-		{
-			this.cleanup("Unexpected reply from cricket device");
-			return;
-		}
-		this.normalCallback("Byte count written successfully!");
 		this.sequence.next();
 	};
 
@@ -531,7 +567,8 @@ CricketProgrammer.prototype.transfer =
 			// Use another class (defined below) to do the transfer.
 		var comms = new CricketCodeTransfer(
 			this.connectionId, 
-			this.data, 
+			this.data,
+			this.rxBuffer,
 			this.sequence.getNext(),  // When the transfer's finished, go to the next function in the sequence.
 			this.normalCallback,
 			this.errorCallback);
@@ -560,7 +597,7 @@ CricketProgrammer.prototype.disconnect =
 		}
 		try
 		{
-			serial.close(this.connectionId, this.sequence.getNext());
+			serial.disconnect(this.connectionId, this.sequence.getNext());
 		}
 		catch (err)
 		{
@@ -584,10 +621,11 @@ CricketProgrammer.prototype.disconnectCallback =
 // This class performs the transfer of the virtual machine code.
 // It has its own sequence, which is set up as a loop.
 //------------------------------------------------------------------------------	
-function CricketCodeTransfer(connectionId, data, returnFunc, normalCallback, errorCallback)
+function CricketCodeTransfer(connectionId, data, rxBuffer, returnFunc, normalCallback, errorCallback)
 {
 	this.connectionId = connectionId;
 	this.data = data;
+	this.rxBuffer = rxBuffer;
 	this.normalCallback = normalCallback;
 	this.errorCallback = errorCallback;
 	this.dataIndex = 0;	// A cursor for stepping through the data
@@ -596,10 +634,8 @@ function CricketCodeTransfer(connectionId, data, returnFunc, normalCallback, err
 	var loop = 
 	[
 		this.writeNextCode.bind(this),
-		this.writeCallback.bind(this),
 		this.wait.bind(this, byteTimeout),
-		this.readCodeReply.bind(this),
-		this.readCodeReplyCallback.bind(this)
+		this.verifyCodeReply.bind(this)
 	];
 	this.sequence = new Sequence(loop, true, this.leave);
 		//The caller wants you to go here when you've finished
@@ -632,7 +668,7 @@ CricketCodeTransfer.prototype.writeNextCode =
 		{
 				// Make an ArrayBuffer out of it so that it can be transmitted.
 			var buf = bytesToArrayBuffer([this.data[this.dataIndex]]);
-			serial.write(this.connectionId, buf, this.sequence.getNext());
+			serial.send(this.connectionId, buf, this.sequence.getNext());
 		}
 		catch (err)
 		{
@@ -641,50 +677,32 @@ CricketCodeTransfer.prototype.writeNextCode =
 		}
 	};
 
-CricketCodeTransfer.prototype.writeCallback = 
-	function(writeInfo) 
-	{
-		this.sequence.next();
-	};
-	
 CricketCodeTransfer.prototype.wait = 
 	function(timeout) 
 	{
 		setTimeout(this.sequence.getNext(), timeout);
 	};	
 
-CricketCodeTransfer.prototype.readCodeReply = 
-	function() 
-	{
-		try
-		{
-				//Reply is two bytes: an echo followed by its bitwise complement
-			serial.read(this.connectionId, 2, this.sequence.getNext());
-		}
-		catch (err)
-		{
-			this.errorCallback("Error reading reply to code - " + err.message);
-			this.returnFunc(false);
-		}
-	};
-
-CricketCodeTransfer.prototype.readCodeReplyCallback =
+CricketCodeTransfer.prototype.verifyCodeReply =
 	function(readInfo) 
 	{
 		//log("CricketCodeTransfer.readCodeReplyCallback()");
-		if (readInfo.bytesRead < 2)
+		try
 		{
-			this.errorCallback("Not enough reply bytes from cricket device");
-			this.returnFunc(false); // Return to the main sequence with failure
-			return;
-		}
 			// The first thing back is always an echo
-		var reply = arrayBufferToBytes(readInfo.data);
-			// Make sure the echo is (an echo)
-		var expected = this.data[this.dataIndex];
-		if (reply[0] != expected || reply[1] != (~expected & 0xff))
+			var reply = this.rxBuffer.getData(2);
+				// Make sure the echo is (an echo)
+			var expected = this.data[this.dataIndex];
+			if (reply[0] != expected || reply[1] != (~expected & 0xff))
+			{
+				this.errorCallback("Unexpected reply to a code byte that was sent.");
+				this.returnFunc(false); // Return to the main sequence with failure
+				return;
+			}
+		}
+		catch (err)
 		{
-			this.errorCallback("Unexpected reply to a code byte that was sent.");
+			this.errorCallback("Error reading reply to code byte:" + err.message);
 			this.returnFunc(false); // Return to the main sequence with failure
 			return;
 		}
@@ -709,6 +727,8 @@ var data = "0\n3\n9\n85\n1\n10\n16\n86\n1\n10\n16\n4\n15\n7"
 var cricket = new CricketProgrammer(device, data);
 
 log("Hello there!");
+
+
 
 
 document.querySelector('button').addEventListener(
