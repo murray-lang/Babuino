@@ -166,12 +166,16 @@ var as = new CricketAssembler();
 	"setsvhn"					[* %match = 145; *]
 	"svrn"						[* %match = 146; *]
 	"svln"						[* %match = 147; *]
-	"sensor"					[* %match = 148; /* sensor number is provided by the previous short */*]
-	"switch"					[* %match = 149; /* switch number is provided by the previous short */*]
-	"push"						[* %match = 150; *]
-	"pop"						[* %match = 151; *]
-	"enter"						[* %match = 152; *]
-	"leave"						[* %match = 153; *]
+	"ain"						[* %match = 148; /* analog input number is provided by the previous short */*]
+	"aout"						[* %match = 149; /* analog output number is provided by the previous short */
+												 /* analog value is provided by the short before that*/*]
+	"din"						[* %match = 150; /* digital input number is provided by the previous short */*]
+    "dout"						[* %match = 151; /* digital output number is provided by the previous short */
+												 /* digital value is provided by the short before that*/*]	
+	"push"						[* %match = 152; *]
+	"pop"						[* %match = 153; *]
+	"enter"						[* %match = 154; *]
+	"leave"						[* %match = 155; *]
 	'sensor[1-8]'	Sensorn	[*	var id = %match.substr( 6 ); 
 										// Legacy sensor[1-8] commands
 									var num = parseInt(id);
@@ -289,10 +293,12 @@ UnaryCmd:		  begin
 				| settemp					
 				| gettemp
 				| getparam
-				| sensor
 				| Sensorn
-				| switch
 				| Switchn
+				| ain
+				| aout
+				| din
+				| dout
 				| push
 				| pop
 				| enter

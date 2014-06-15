@@ -951,6 +951,14 @@ BabuinoBackEnd.prototype.compileArgCommand =
 			return null;
 		return arg.concat([new VmCode(1, cmd)]);
 	};
+	
+BabuinoBackEnd.prototype.compile2ArgCommand =
+	function (cmd, arg1, arg2)
+	{
+		if (this.currentPass != 2)
+			return null;
+		return arg2.concat(arg1, [new VmCode(1, cmd)]);
+	};	
 
 BabuinoBackEnd.prototype.compileExpression =
 	function (lhs, op, rhs)	
@@ -1562,8 +1570,11 @@ function trace(str)
 	","
 	"sensor"
 	"sensor[1-8]"					Sensorn	
-	"switch"
 	"switch[1-8]"					Switchn
+	"digitalin"
+	"digitalout"
+	"analogin"
+	"analogout"
 	"[A-Za-z_][A-Za-z0-9_]*"		Identifier
 	"\"[A-Za-z_][A-Za-z0-9_]*"		Receiver						[* %match = %match.substr( 1, %match.length - 1 ); *]
 	"[A-Za-z_][A-Za-z0-9_]*\""		Label							[* %match = %match.substr( 0, %match.length - 1 ); *]
@@ -1633,7 +1644,7 @@ Proc_Stmt_List:	Proc_Stmt_List Proc_Stmt									[* bbe.addToProc(%2); *]
 				
 Proc_Stmt:		Stmt 
 				| 
-				;					
+				;
 				
 Param_List:		Param_List Param									[* bbe.addParameter(%2); *]
 				|
@@ -1655,6 +1666,8 @@ ProcCall:		Identifier Arg_List										[* %% = %1; *]
 
 ProcCallNoArg:	Identifier 												[* %% = %1; *]
 				;
+	
+
 				
 Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| ifelse Expression Block Block 					[* %% = bbe.compileIfElse(%2, %3, %4); *]
@@ -1686,6 +1699,8 @@ Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| resetdp											[* %% = bbe.compileSimpleCommand(%1); *]
 				| record AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]					
 				| erase AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]
+				| digitalout AddSubExp AddSubExp					[* %% = bbe.compile2ArgCommand("dout", %2, %3); *]
+				| analogout AddSubExp AddSubExp						[* %% = bbe.compile2ArgCommand("aout", %2, %3); *]
 				| ';'												[* *]
 				;
 				
@@ -1763,11 +1778,12 @@ Value:			Integer												[* %% = bbe.compileInteger(%1); *]
 				| Sensorn											[* %% = bbe.compileSimpleCommand(%1); *]
 				| sensor AddSubExp									[* %% = bbe.compileSensor(%1); *]
 				| Switchn											[* %% = bbe.compileSimpleCommand(%1); *]
-				| switch AddSubExp									[* %% = bbe.compileSwitch(%1); *]
 				| serial AddSubExp									[* %% = bbe.compileArgCommand("serialn", %2); *]
 				| NewSerial AddSubExp								[* %% = bbe.compileArgCommand("newserialn?", %2); *]
 				| serial											[* %% = bbe.compileSimpleCommand(%1); *]
 				| NewSerial											[* %% = bbe.compileSimpleCommand(%1); *]
+				| digitalin	AddSubExp								[* %% = bbe.compileArgCommand("din", %2); *]
+				| analogin	AddSubExp								[* %% = bbe.compileArgCommand("ain", %2); *]				
 				| ProcCall			  								[* %% = bbe.compileProcedureCall(%1, true, true);*]
 				| ProcCallNoArg			  							[* %% = bbe.compileProcedureCall(%1, true, false);*]
 				;
