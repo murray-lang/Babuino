@@ -64,6 +64,32 @@ Blockly.Logo.babuino_sensor = function() {
   return [code, Blockly.Logo.ORDER_ASSIGNMENT];
 };
 
+Blockly.Logo.babuino_digitalin = function() {
+  var dropdown_sel_switch = this.getTitleValue('SEL_BIT');
+  var code = 'digitalin ' + dropdown_sel_switch + '\n';
+  return [code, Blockly.Logo.ORDER_ASSIGNMENT];
+};
+
+Blockly.Logo.babuino_analogin = function() {
+  var dropdown_sel_switch = this.getTitleValue('SEL_INPUT');
+  var code = 'analogin ' + dropdown_sel_switch + '\n';
+  return [code, Blockly.Logo.ORDER_ASSIGNMENT];
+};
+
+Blockly.Logo.babuino_digitalout = function() {
+  var bit = this.getTitleValue('SEL_BIT');
+  var var_value = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
+  var code = 'digitalout ' + bit + ' ' + var_value + '\n';
+  return code;
+};
+
+Blockly.Logo.babuino_analogout = function() {
+  var port = this.getTitleValue('SEL_OUTPUT');
+  var var_value = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
+  var code = 'analogout ' + port + ' ' + var_value + '\n';
+  return code;
+};
+
 Blockly.Logo.babuino_setsvh = function() {
   var angle_name = this.getTitleValue('VAR_HEADING');
   
@@ -76,7 +102,7 @@ Blockly.Logo.babuino_servo = function() {
   var value_var_steps = Blockly.Logo.valueToCode(this, 'VAR_STEPS', Blockly.Logo.ORDER_ASSIGNMENT);
   var code = 'sv' + dir + ' ' + value_var_steps + '\n';
   return code;
-}
+};
 /*
 Blockly.Logo.babuino_svr = function() {
   var value_var_steps = Blockly.Logo.valueToCode(this, 'VAR_STEPS', Blockly.Logo.ORDER_ASSIGNMENT);

@@ -142,6 +142,10 @@
           </block>
         </value>
       </block>
+	  <block type="babuino_timer"></block>
+	  <block type="babuino_reset_timer"></block>
+	  <block type="babuino_wait"></block>
+	  <block type="babuino_wait_until"></block>
 	  <!-- To Do: implement for Logo
       <block type="controls_forEach"></block>
       <block type="controls_flow_statements"></block>
@@ -202,6 +206,7 @@
           </block>
         </value>
       </block>
+	  <block type="babuino_random"></block>
       <!--<block type="math_random_float"></block>-->
     </category>
 	<!-- To Do: implement for Logo
@@ -281,22 +286,24 @@
 	-->
     <category name="{$ij.MSG.catVariables}" custom="VARIABLE"></category>
     <category name="{$ij.MSG.catProcedures}" custom="PROCEDURE"></category>
-	<category name="{$ij.MSG.catBabuino}">
-	
-      <block type="babuino_motor_cmd"></block>
+	<category name="{$ij.MSG.catMotor}">
+	  <block type="babuino_motor_cmd"></block>
 	  <block type="babuino_motor_setpower"></block>
       <block type="babuino_motor_onfor"></block>
+	</category>
+	<category name="{$ij.MSG.catIO}">
 	  <block type="babuino_switch"></block>
 	  <block type="babuino_sensor"></block>
+	  <block type="babuino_digitalin"></block>
+	  <block type="babuino_digitalout"></block>
+	  <block type="babuino_analogin"></block>
+	  <block type="babuino_analogout"></block>
 	  <block type="babuino_setsvh"></block>
 	  <block type="babuino_servo"></block>
-	  <block type="babuino_timer"></block>
-	  <block type="babuino_reset_timer"></block>
-	  <block type="babuino_wait"></block>
-	  <block type="babuino_wait_until"></block>
 	  <block type="babuino_beep"></block>
 	  <block type="babuino_led"></block>
-	  <block type="babuino_random"></block>
+	</category>
+	<category name="{$ij.MSG.catComms}">
 	  <block type="babuino_serial"></block>
 	  <block type="babuino_serial_available"></block>
 	  <block type="babuino_serial_send"></block>

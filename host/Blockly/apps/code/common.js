@@ -80,7 +80,7 @@
 		var portsList = document.getElementById("serialports");
 		portsList.onchange = onSerialPortChange;
 		
-		chrome.serial.getPorts(populateSerialPortList);
+		chrome.serial.getDevices(populateSerialPortList);
 	}
 )();
 
@@ -102,8 +102,8 @@ function populateSerialPortList(availablePorts)
 	for (var i = 0; i < availablePorts.length; i++)
 	{
 		var option = document.createElement("option");
-		option.text = availablePorts[i];
-		option.value = availablePorts[i];
+		option.text = availablePorts[i].path;
+		option.value = availablePorts[i].path;
 		portsList.add(option);
 	}
 };
@@ -444,6 +444,8 @@ function commsErrorCallback(msg)
 
 function onClickLaunch()
 {
+	onSerialPortChange(); // Make sure the selected serial port is used
+	
 	tabClick("tab_console");
 		// Get Logo code first
 	var code = Blockly.Generator.workspaceToCode('Logo');

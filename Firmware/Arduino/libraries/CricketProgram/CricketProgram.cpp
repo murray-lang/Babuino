@@ -52,8 +52,14 @@ CricketProgram::setup()
 	_motors.setup();
 	
 	_switches.setuprun();
-	setupuserLed();
-	setuppiezoBeeper();
+	//setupuserLed();
+	//setuppiezoBeeper();
+	pinMode(PIN_DO1, OUTPUT);
+	pinMode(PIN_DO2, OUTPUT);
+	pinMode(PIN_DO3, OUTPUT);
+	pinMode(PIN_DO4, OUTPUT);
+	
+	pinMode(PIN_AO1, OUTPUT);
 	
 	double_beep();
 	return true;
@@ -352,6 +358,44 @@ CricketProgram::code_exec()
 				localsLocation = _stack.pop();	// Restore the caller's locals location
 				break;
 				
+			case OP_SETLOCAL:
+				temp1 = _stack.pop(); // Value at the top
+				temp2 = _stack.pop(); // Index of variable next
+					// If localsLocation is -1 then we're in global code so
+					// assume we're referring to a global variable.
+				if (localsLocation != -1)
+					_stack.set(localsLocation + temp2, temp1);
+				else
+					_globals[temp2] = temp1;
+				break;
+				
+			case OP_GETLOCAL:
+				temp1 = _stack.pop(); // Index of variable 
+					// If localsLocation is -1 then we're in global code so
+					// assume we're referring to a global variable.
+				if (localsLocation != -1)
+					temp2 = _stack.get(localsLocation + temp1);
+				else
+					temp2 = _globals[temp1];
+					
+				_stack.push(temp2);
+				break;
+			// Temporary (block scope) variables are stored in the same way as
+			// locals (on the stack) so the code above and below are the same.
+			// The compiler makes sure that the indexes don't clash.
+			/*
+			case OP_SETTEMP:
+				temp1 = _stack.pop();	// Value of variable
+				temp2 = _stack.pop();	// Location of variable
+				_stack.set(localsLocation + temp2, temp1);
+				break;
+
+			case OP_GETTEMP:
+				temp1 = _stack.pop(); // Index of variable 
+				temp2 = _stack.get(localsLocation + temp1);
+				_stack.push(temp2);
+				break;
+			*/	
 			case OP_CALL:
 				//Serial.println("-call-");
 				//print_stack();
@@ -459,10 +503,19 @@ CricketProgram::code_exec()
 					}
 					else
 					{	
-						temp6 = _temporaries[temp5];
+						if (localsLocation != -1)
+							temp6 = _stack.get(localsLocation + temp5);
+						else
+							temp6 = _globals[temp5];
+						//temp6 = _temporaries[temp5];
 						temp6 += temp2; // Increment counter
 					}
-					_temporaries[temp5] = temp6;
+					if (localsLocation != -1)
+						_stack.set(localsLocation + temp5, temp6);
+					else
+						_globals[temp5] = temp6;
+					break;
+					//_temporaries[temp5] = temp6;
 					//Serial.println(temp6);
 					//Serial.println(",");
 					//Serial.println(temp1);
@@ -689,57 +742,15 @@ CricketProgram::code_exec()
 				break;
 
 			case OP_SETGLOBAL:
-				temp1 = _stack.pop();	// Location of variable
-				temp2 = _stack.pop();	// Value of variable
-				_globals[temp1] = temp2;
+				temp1 = _stack.pop();	// Value of variable
+				temp2 = _stack.pop();	// Location of variable
+				_globals[temp2] = temp1;
 				break;
 
 			case OP_GLOBAL:
 				_stack.push(_globals[_stack.pop()]);
 				break;
 				
-			case OP_SETTEMP:
-				temp1 = _stack.pop();	// Location of variable
-				temp2 = _stack.pop();	// Value of variable
-				_temporaries[temp1] = temp2;
-				break;
-
-			case OP_GETTEMP:
-				_stack.push(_temporaries[_stack.pop()]);
-				break;
-/*
-			case RECORD:
-				local_temp = pop16();
-				modbus_memory[modbus_data_ptr] = local_temp;
-				modbus_data_ptr++;
-			break;
-
-
-			case RECALL:
-				local_temp = modbus_memory[modbus_data_ptr];
-				push16(local_temp);
-				modbus_data_ptr++;
-			break;
-
-
-			case RESETDP:
-				modbus_data_ptr = 0;
-			break;
-
-
-			case SETDP:
-				local_temp = pop16();
-				modbus_data_ptr = local_temp;
-			break;
-
-
-			case ERASE:
-				local_temp = 0;
-				modbus_memory[modbus_data_ptr] = local_temp;
-				modbus_data_ptr++;
-			break;
-
-*/
 			case OP_TALK_TO_MOTORS:
 				temp1 = _stack.pop();
 				_selectedMotors = (Motors::Selected)temp1;
@@ -795,118 +806,65 @@ CricketProgram::code_exec()
 				_motors.off(_selectedMotors);
 				break;
 			
-/* Only two motors supported at present unfortunately
-			case SEL_C:
-				motorMask = motorMask_C;
-			break;
-			case SEL_D:
-				motorMask = motorMask_D;
-			break;
-			case SEL_CD:
-				motorMask = motorMask_C;
-				motorMask |= motorMask_D;
-			break;
-			case SEL_ABCD:
-				motorMask = motorMask_A;
-				motorMask |= motorMask_B;
-				motorMask |= motorMask_C;
-				motorMask |= motorMask_D;
-			break;
-*/
-
-
-
-			case OP_SENSORB:
-				_stack.push(_sensors.B());
+			case OP_SENSOR1:
+				_stack.push(analogRead(PIN_AI1));
+				break;
+				
+			case OP_SENSOR2:
+				_stack.push(analogRead(PIN_AI2));
+				break;
+				
+			case OP_SENSOR3:
+				_stack.push(analogRead(PIN_AI3));
 				break;
 
-
-/*
-			case SENSORA:	// SENSOR x FOR INEX MODE
-				temp2 = INEX_MODE;
-				if (interpreter_mode == temp2)
-				{
-					temp1 = pop16();
-				}
-				else
-				{
-					temp1 = 0;
-				}
-				push16(adc_read(temp1));
-			break;
-*/
-			case OP_SENSORA:
-				_stack.push(_sensors.A());
+			case OP_SENSOR4:
+				_stack.push(analogRead(PIN_AI4));
 				break;
 
-
-		/*
-			case SWITCHA:
-				temp2 = INEX_MODE;
-				if (interpreter_mode == temp2)
-				{
-					temp1 = pop16();
-				}
-				else
-				{
-					temp1 = 0;
-				}
-				push16(adc_read(0)>>7);
-			break;
-			*/
-			case OP_SWITCHA:
-				_stack.push(_sensors.A()>>7);
+			case OP_SWITCH1:
+				_stack.push(analogRead(PIN_AI1)>>7);
 				break;
 
+			case OP_SWITCH2:
+				_stack.push(analogRead(PIN_AI2)>>7);
+				break;
+				
+			case OP_SWITCH3:
+				_stack.push(analogRead(PIN_AI3)>>7); //push16(adc_read(2)>>7);
+				break;
 
-			case OP_SWITCHB:
-				_stack.push(_sensors.B()>>7);
+			case OP_SWITCH4:
+				_stack.push(analogRead(PIN_AI4)>>7); //push16(adc_read(3)>>7);
 				break;
 
 			case OP_STOP1:
 				_states.setRunRequest(STOPPED);
 				break;
-
-/*
-			case BABUINO_01:
-				beep();
-				break;
-
-
-			case BABUINO_02:
-				beep();
-				beep();
-				break;
-
-
-			case BABUINO_03:
-				beep();
-				beep();
-				beep();
-				break;
-			*/
-			case OP_SENSORC:
-				_stack.push(_sensors.C());
-				break;
-
-			case OP_SENSORD:
-				_stack.push(_sensors.D());
-				break;
-
-			case OP_SWITCHC:
-				_stack.push(_sensors.C()>>7); //push16(adc_read(2)>>7);
-				break;
-
-			case OP_SWITCHD:
-				_stack.push(_sensors.D()>>7); //push16(adc_read(3)>>7);
-				break;
+	
 
 			case OP_LEDON:
-				userLed(true);	// set the correct bit
+				digitalWrite(PIN_LED, HIGH);
 				break;
 
 			case OP_LEDOFF:
-				userLed(false);
+				digitalWrite(PIN_LED, LOW);
+				break;
+				
+			case OP_AIN:
+				readAnalogInput();
+				break;
+				
+			case OP_AOUT:
+				writeAnalogOutput();
+				break;
+				
+			case OP_DIN:
+				readDigitalInput();
+				break;
+				
+			case OP_DOUT:
+				writeDigitalOutput();
 				break;
 				
 			default:
@@ -917,14 +875,96 @@ CricketProgram::code_exec()
 	}
 }
 
+int  
+CricketProgram::getAnalogInputPin(int i)
+{
+	static byte pins[] = {PIN_AI1, PIN_AI2, PIN_AI3, PIN_AI4};
+	
+	if (i < 0 || i > sizeof(pins)/sizeof(byte) -1)
+		return -1;
+		
+	return pins[i];
+}
+
+int  
+CricketProgram::getDigitalInputPin(int i)
+{
+	static byte pins[] = {PIN_DI1};
+	
+	if (i < 0 || i > sizeof(pins)/sizeof(byte) -1)
+		return -1;
+		
+	return pins[i];
+}
+
+int  
+CricketProgram::getDigitalOutputPin(int i)
+{
+	static byte pins[] = {PIN_DO1, PIN_DO2, PIN_DO3, PIN_DO4};
+	
+	if (i < 0 || i > sizeof(pins)/sizeof(byte) -1)
+		return -1;
+		
+	return pins[i];
+}
+
+int  
+CricketProgram::getAnalogOutputPin(int i)
+{
+	static byte pins[] = {PIN_AO1};
+	
+	if (i < 0 || i > sizeof(pins)/sizeof(byte) -1)
+		return -1;
+		
+	return pins[i];
+}
+
+void  
+CricketProgram::readAnalogInput()
+{
+	int pin = getAnalogInputPin(_stack.pop());
+	if (pin >= 0)
+		_stack.push(analogRead(pin));
+	else
+		_stack.push(0); // Hmmm...if we don't push something then the stack becomes unbalanced!
+}
+
+void  
+CricketProgram::readDigitalInput()
+{
+	int pin = getDigitalInputPin(_stack.pop());
+	if (pin >= 0)
+		_stack.push(digitalRead(pin) == HIGH ? true : false);
+	else
+		_stack.push(false); // Hmmm...if we don't push something then the stack becomes unbalanced!
+}
+
+void 
+CricketProgram::writeDigitalOutput()
+{
+	int pin = getDigitalOutputPin(_stack.pop());
+	bool val = _stack.pop() == 0 ? false : true;
+	if (pin >= 0)
+		digitalWrite(pin, val ? LOW : HIGH);
+}
+
+void 
+CricketProgram::writeAnalogOutput()
+{
+	int pin = getAnalogOutputPin(_stack.pop());
+	int val = _stack.pop();
+	if (pin >= 0)
+		analogWrite(pin, val);
+}
+
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 void 
 CricketProgram::beep() const
 {
-	piezoBeeper(127);
+	analogWrite(PIN_BEEPER, 127);
 	delay(50);
-	piezoBeeper(0);
+	analogWrite(PIN_BEEPER, 0);
 }
 
 //------------------------------------------------------------------------------

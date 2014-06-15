@@ -53,6 +53,26 @@
 #define PIN_H_MOTOR_B_2		 7		// PORTD pin 7 is Arduino digital pin 7 for ATMEGA168/328
 #define PIN_H_MOTOR_B_PWM    3		// PORTD pin 3 is Arduino digital pin 3 for ATMEGA168/328
 
+#define PIN_DI1			 8
+//#define PIN_DI2
+//#define PIN_DI3
+//#define PIN_DI4
+
+#define PIN_DO1			 5
+#define PIN_DO2			 6
+#define PIN_DO3			10
+#define PIN_DO4			13
+
+#define PIN_AI1			A0
+#define PIN_AI2			A1
+#define PIN_AI3			A2
+#define PIN_AI4			A3
+
+#define PIN_AO1			 9
+//#define PIN_AO2
+//#define PIN_AO3
+//#define PIN_AO4
+
 
 #define STACK_SIZE 48
 #define LSTACK_SIZE 4

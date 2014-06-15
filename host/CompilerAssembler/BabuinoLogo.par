@@ -234,7 +234,7 @@ ProcedureDefinition.prototype.findVariable =
 	};
 
 ProcedureDefinition.prototype.resolveVariables = 
-	function (globalVariables) //(codes, inProcedure, parameters)
+	function (globalVariables, errorOutput) //(codes, inProcedure, parameters)
 	{
 		if (this.statements === undefined || this.statements == null)
 			return
@@ -320,14 +320,14 @@ ProcedureDefinition.prototype.resolveVariables =
 					
 			if (this.statements[i].xref === undefined || this.statements[i].xref == null)
 			{
-					this.errorOutput("Cross reference expected but undefined.");
+					errorOutput("Cross reference expected but undefined.");
 					continue;
 			}
 					// Need to look at the next code to see if it's a set or get.
 					// Make sure there's actually a next code.
 			if ((i + 1) >= this.statements.length)
 			{
-				this.errorOutput("Unexpected end of code.");
+				errorOutput("Unexpected end of code.");
 				return;
 			}
 			if (this.statements[i].partnerCode == null)
@@ -358,12 +358,18 @@ ProcedureDefinition.prototype.resolveVariables =
 			if (localIndex == -1)
 				localIndex = this.findVariable(this.variables, this.statements[i].xref);
 				
-			if (localIndex != -1)        // The variable is local to a procedure.
+			if (localIndex != -1)        
 			{
-					this.statements[i].argument = localIndex;
-					this.statements[i].xrefResolved = true;
+					// The variable is local to a procedure, BUT if the provided 
+					// globals are null then this is the global code and local 
+					// variables are in fact global.
+				this.statements[i].argument = localIndex;
+				this.statements[i].xrefResolved = true;
+				if (globalVariables == null)
+					this.statements[i].partnerCode.code = isGet ? "getglobal" : "setglobal";
+				else
 					this.statements[i].partnerCode.code = isGet ? "getlocal" : "setlocal";
-					continue;
+				continue;
 			}
 				// Not local. Try the function parameters
 			if (this.parameters !== null)
@@ -378,7 +384,7 @@ ProcedureDefinition.prototype.resolveVariables =
 					// It's a function parameter
 				if (!isGet)
 				{
-					this.errorOutput("Cannot assign a value to procedure parameter " + this.statements[i].xref);
+					errorOutput("Cannot assign a value to procedure parameter " + this.statements[i].xref);
 				}
 				this.statements[i].argument = paramIndex;
 				this.statements[i].xrefResolved = true;
@@ -404,7 +410,7 @@ ProcedureDefinition.prototype.resolveVariables =
 					// this is an error.
 			if (isGet)
 			{
-					this.errorOutput("The variable \"" + this.statements[i].xref + "\" is undefined.");
+					errorOutput("The variable \"" + this.statements[i].xref + "\" is undefined.");
 					continue;
 			}
 					// Reaching this point means that we're setting a variable that
@@ -1283,7 +1289,7 @@ BabuinoBackEnd.prototype.resolveVariablesInProcedures =
 				// references.
 			for (var i = 0; i < this.procedureDefinitions.length; i++)
 			{
-				this.procedureDefinitions[i].resolveVariables(this.globalProcDef.variables);
+				this.procedureDefinitions[i].resolveVariables(this.globalProcDef.variables, this.errorOutput);
 			}
 		}
 		else
@@ -1304,7 +1310,7 @@ BabuinoBackEnd.prototype.resolveVariablesInProcedures =
 			for (var i = 0; i < this.procedureDefinitions.length; i++)
 			{
 				if (i != startIndex)
-					this.procedureDefinitions[i].resolveVariables(globals);
+					this.procedureDefinitions[i].resolveVariables(globals, this.errorOutput);
 			}
 		}
 	};
@@ -1543,6 +1549,7 @@ function trace(str)
 	"setsvh"
 	"svr"
 	"svl"
+	"setdp"
 	"resetdp"
 	"record"
 	"recall"
@@ -1675,6 +1682,10 @@ Stmt:			if Expression Block 								[* %% = bbe.compileIf(%2, %3); *]
 				| beep 												[* %% = bbe.compileSimpleCommand(%1); *]
 				| resett 											[* %% = bbe.compileSimpleCommand(%1); *]
 				| random AddSubExp AddSubExp						[* %% = bbe.compileRandomXY(%2, %3); *]
+				| setdp AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]
+				| resetdp											[* %% = bbe.compileSimpleCommand(%1); *]
+				| record AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]					
+				| erase AddSubExp									[* %% = bbe.compileArgCommand(%1, %2); *]
 				| ';'												[* *]
 				;
 				
@@ -1743,6 +1754,7 @@ NegExp:			'-' Value		&'*'								[* %% = (%2).concat(bbe.compileUnaryMinus()); *
 
 Value:			Integer												[* %% = bbe.compileInteger(%1); *]
 				| Float												[* *]
+				| recall											[* %% = bbe.compileSimpleCommand(%1); *]
 				| Reporter											[* %% = bbe.compileGetVariable(%1); *]
 				| timer												[* %% = bbe.compileSimpleCommand(%1); *]
 				| random											[* %% = bbe.compileSimpleCommand(%1); *]
@@ -1824,7 +1836,7 @@ BabuinoLogo.prototype.compile =
 				// in order to determine how many local variables need to be allocated
 				// within each procedure. That information is needed so that the
 				// the instructions can be added to allocate and clean them up.
-			bbe.globalProcDef.resolveVariables(null);
+			bbe.globalProcDef.resolveVariables(null, errorOutput);
 			bbe.resolveVariablesInProcedures();
 				// Procedures can now be compiled. In the process it is determined
 				// whether the procedure returns a value. That information is needed

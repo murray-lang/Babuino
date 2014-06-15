@@ -214,7 +214,7 @@ Cmd:			  UnaryCmd					[* as.append(%1); *]
 				;
 
 BinaryCmd:		  byte	DecInteger			[* as.append(%1); as.append(%2); *]
-				| short	DecInteger			[* as.append(%1); as.append((%2 >> 8) & 0xff ); as.append(%2 & 0xff);*]
+				| short	DecInteger			[* as.append(%1); as.append((%2 >> 8) & 0xff ); as.append(%2 & 0xff); *]
 				| block	DecInteger			[* as.append(%1); as.append(%2); *]
 				;
 UnaryCmd:		  begin	

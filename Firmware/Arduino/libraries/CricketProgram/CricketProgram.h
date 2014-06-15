@@ -49,6 +49,7 @@
 
 #include <Arduino.h>
 //#include <pins_arduino.h> 
+#include "configdefs.h"
 #include "Program.hpp"
 #include "Stack.hpp"
 #include "DigitalInput.hpp"
@@ -219,6 +220,15 @@ protected:
 	void code_exec();
 	void beep() const;
 	void double_beep() const;
+	int  getAnalogInputPin(int i);
+	int  getDigitalInputPin(int i);
+	int  getAnalogOutputPin(int i);
+	int  getDigitalOutputPin(int i);
+	
+	void readAnalogInput();
+	void readDigitalInput();
+	void writeDigitalOutput();
+	void writeAnalogOutput();
 	
 	//void print_stack(); // debugging
 	
@@ -261,20 +271,20 @@ protected:
 		}
 	} _switches;
 	
-	class SensorInputs
-	{
-	public:
-		ANALOG_INPUT(A, A2)
-		ANALOG_INPUT(B, A3)
-		ANALOG_INPUT(C, A4)
-		ANALOG_INPUT(D, A5)
-	} _sensors;
+	// class SensorInputs
+	// {
+	// public:
+		// ANALOG_INPUT(A, A2)
+		// ANALOG_INPUT(B, A3)
+		// ANALOG_INPUT(C, A4)
+		// ANALOG_INPUT(D, A5)
+	// } _sensors;
 	
 		// There is currently nothing in the code to make this LED flash at 
 		// different rates as the original Babuino code does. (TO DO)
-	DIGITAL_OUTPUT(userLed, PIN_LED, HIGH, LOW)
+	//DIGITAL_OUTPUT(userLed, PIN_LED, HIGH, LOW)
 		
-	ANALOG_OUTPUT(piezoBeeper, PIN_BEEPER)
+	//ANALOG_OUTPUT(piezoBeeper, PIN_BEEPER)
 	
 	enum eOpCodes
 	{
@@ -333,10 +343,10 @@ protected:
 		OP_THISWAY		= 0x34,	// ok
 		OP_THATWAY		= 0x35,	// ok
 		OP_RD			= 0x36,	// ok
-		OP_SENSORA		= 0x37,	// ok
-		OP_SENSORB		= 0x38,	// ok
-		OP_SWITCHA		= 0x39,	// ok
-		OP_SWITCHB		= 0x3A,	// ok
+		OP_SENSOR1		= 0x37,	// ok
+		OP_SENSOR2		= 0x38,	// ok
+		OP_SWITCH1		= 0x39,	// ok
+		OP_SWITCH2		= 0x3A,	// ok
 		OP_SETPOWER		= 0x3B,	// ok
 		OP_BRAKE		= 0x3C,	// ok
 		OP_BSEND		= 0x3D,
@@ -352,10 +362,18 @@ protected:
 		OP_LOW_BYTE 	= 0x47,
 		OP_HIGH_BYTE 	= 0x48,
 		// Adding switches/sensors causes conflicts
-		OP_SENSORC		= 0x49,
-		OP_SENSORD		= 0x4A,
-		OP_SWITCHC		= 0x4F,
-		OP_SWITCHD		= 0x50,
+		OP_SENSOR3		= 0x49,
+		OP_SENSOR4		= 0x4A,
+		OP_SENSOR5		= 0x4B,
+		OP_SENSOR6		= 0x4C,
+		OP_SENSOR7		= 0x4D,
+		OP_SENSOR8		= 0x4E,
+		OP_SWITCH3		= 0x4F,
+		OP_SWITCH4		= 0x50,
+		OP_SWITCH5		= 0x51,
+		OP_SWITCH6		= 0x52,
+		OP_SWITCH7		= 0x53,
+		OP_SWITCH8		= 0x54,
 		OP_LEDON		= 0x55,
 		OP_LEDOFF		= 0x56,
 		OP_SETSVH		= 87,
@@ -383,19 +401,21 @@ protected:
 		OP_SETSVHN      = 145,
 		OP_SVRN			= 146,
 		OP_SVLN			= 147,
-		OP_SENSOR		= 148,
-		OP_SWITCH		= 149,
-		OP_PUSH			= 150,	//Raise the stack by the given amount
-		OP_POP			= 151,	//Clear the top of the stack by the given amount
-		OP_ENTER		= 152,
-		OP_LEAVE		= 153
+		OP_AIN          = 148,
+		OP_AOUT         = 149,
+		OP_DIN   		= 150,
+		OP_DOUT  		= 151,
+		OP_PUSH			= 152,	//Raise the stack by the given amount
+		OP_POP			= 153,	//Clear the top of the stack by the given amount
+		OP_ENTER		= 154,
+		OP_LEAVE		= 155
 	};
 	
 protected:
 	CricketProgramStates	_states;
 	ShortUnion2Bytes		_address;
 	int						_globals[MAX_GLOBALS];
-	int						_temporaries[MAX_TEMPORARIES];
+	//int						_temporaries[MAX_TEMPORARIES];
 	unsigned int			_timerCount;
 	Motors					_motors;
 	Motors::Selected 		_selectedMotors;

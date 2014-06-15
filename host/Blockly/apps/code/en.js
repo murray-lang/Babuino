@@ -16,6 +16,9 @@ var MSG = {
 	catVariables: 'Variables',
 	catProcedures: 'Procedures',
 	catBabuino: 'Babuino',
+	catMotor: 'Motor Control',
+	catIO: 'Input/Output',
+	catComms: 'Communications',
 	// Misc text.
 	blocks: 'Blocks',
 	badXml: 'Error parsing XML:\n%1\n\nAbandon changes?',

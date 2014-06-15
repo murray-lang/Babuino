@@ -335,3 +335,71 @@ Blockly.Language.babuino_serial_send = {
   }
 };
 
+Blockly.Language.babuino_digitalin = {
+  helpUrl: 'http://www.example.com/',
+  init: function() {
+    this.setColour(330);
+    this.appendDummyInput()
+        .appendTitle("digital input");
+    this.appendDummyInput()
+        .appendTitle(new Blockly.FieldDropdown([["0", "0"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]  ]), "SEL_BIT");
+    this.setInputsInline(true);
+    this.setOutput(true, Boolean);
+    this.setTooltip('');
+  }
+};
+
+Blockly.Language.babuino_digitalout = {
+  helpUrl: 'http://www.example.com/',
+  init: function() {
+    this.setColour(330);
+    this.appendDummyInput()
+        .appendTitle("digital output");
+	this.appendDummyInput()
+        .appendTitle(new Blockly.FieldDropdown([["0", "0"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"] ]), "SEL_BIT");
+	this.appendDummyInput()
+        .appendTitle("<-");
+    this.appendValueInput("VAR_VALUE")
+        .setCheck(Boolean);
+    
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, "null");
+    this.setNextStatement(true, "null");
+    this.setTooltip('');
+  }
+};
+
+Blockly.Language.babuino_analogin = {
+  helpUrl: 'http://www.example.com/',
+  init: function() {
+    this.setColour(330);
+    this.appendDummyInput()
+        .appendTitle("analog input");
+    this.appendDummyInput()
+        .appendTitle(new Blockly.FieldDropdown([["0", "0"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]), "SEL_INPUT");
+    this.setInputsInline(true);
+    this.setOutput(true, Number);
+    this.setTooltip('');
+  }
+};
+
+Blockly.Language.babuino_analogout = {
+  helpUrl: 'http://www.example.com/',
+  init: function() {
+    this.setColour(330);
+    this.appendDummyInput()
+        .appendTitle("analog output");
+	this.appendDummyInput()
+        .appendTitle(new Blockly.FieldDropdown([["0", "0"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]), "SEL_OUTPUT");
+	this.appendDummyInput()
+        .appendTitle("<-");
+    this.appendValueInput("VAR_VALUE")
+        .setCheck(Number);
+    
+    this.setInputsInline(true);
+    this.setPreviousStatement(true, "null");
+    this.setNextStatement(true, "null");
+    this.setTooltip('');
+  }
+};
+
