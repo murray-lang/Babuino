@@ -142,12 +142,14 @@
           </block>
         </value>
       </block>
+      <block type="controls_forEach"></block>
 	  <block type="babuino_timer"></block>
 	  <block type="babuino_reset_timer"></block>
 	  <block type="babuino_wait"></block>
 	  <block type="babuino_wait_until"></block>
-	  <!-- To Do: implement for Logo
-      <block type="controls_forEach"></block>
+
+
+      <!-- To Do: implement for Logo
       <block type="controls_flow_statements"></block>
 	  -->
     </category>
@@ -162,10 +164,16 @@
     <category name="{$ij.MSG.catMath}">
       <block type="math_number"></block>
       <block type="math_arithmetic"></block>
-	  <!--
+
       <block type="math_single"></block>
       <block type="math_trig"></block>
+      <block type="babuino_math_atan2"></block>
+      <block type="babuino_math_hypot"></block>
+      <block type="babuino_math_pow"></block>
+      <block type="babuino_math_min"></block>
+      <block type="babuino_math_max"></block>
       <block type="math_constant"></block>
+      <!--
       <block type="math_number_property"></block>
 	  -->
       <block type="math_change">
@@ -175,11 +183,10 @@
           </block>
         </value>
       </block>
-	  <!--
+
       <block type="math_round"></block>
-      <block type="math_on_list"></block>
-	  -->
-      <block type="math_modulo"></block>
+      <!--<block type="math_on_list"></block>-->
+	  <block type="math_modulo"></block>
 	  <!--
       <block type="math_constrain">
         <value name="LOW">
@@ -209,9 +216,12 @@
 	  <block type="babuino_random"></block>
       <!--<block type="math_random_float"></block>-->
     </category>
-	<!-- To Do: implement for Logo
     <category name="{$ij.MSG.catText}">
       <block type="text"></block>
+      <block type="babuino_string_of_length"></block>
+      <block type="babuino_tostring"></block>
+      <block type="babuino_stringlength"></block>
+      <!-- To Do: implement for Logo
       <block type="text_join"></block>
       <block type="text_append">
         <value name="TEXT">
@@ -239,12 +249,13 @@
       <block type="text_trim"></block>
       <block type="text_print"></block>
       <block type="text_prompt"></block>
+      -->
     </category>
-	-->
-	<!-- To Do: implement for Logo
-    <category name="{$ij.MSG.catLists}">
-      <block type="lists_create_empty"></block>
+
+	<category name="{$ij.MSG.catLists}">
+      <!-- <block type="lists_create_empty"></block> -->
       <block type="lists_create_with"></block>
+      <!-- To Do: implement for Logo
       <block type="lists_repeat">
         <value name="NUM">
           <block type="math_number">
@@ -275,8 +286,9 @@
           </block>
         </value>
       </block>
+      -->
     </category>
-	-->
+
 	<!-- To Do: implement for Logo
     <category name="{$ij.MSG.catColour}">
       <block type="colour_picker"></block>
@@ -285,6 +297,17 @@
     </category>
 	-->
     <category name="{$ij.MSG.catVariables}" custom="VARIABLE"></category>
+    <category name="{$ij.MSG.catPointers}">
+    	  <block type="babuino_reference_to"></block>
+    	  <block type="babuino_dereference"></block>
+    	  <block type="babuino_set_referenced_by"></block>
+    	</category>
+    <category name="{$ij.MSG.catArrays}">
+        <block type="babuino_declare_array"></block>
+        <block type="babuino_declare_typed_array"></block>
+        <block type="babuino_set_array"></block>
+        <block type="babuino_get_array"></block>
+    </category>
     <category name="{$ij.MSG.catProcedures}" custom="PROCEDURE"></category>
 	<category name="{$ij.MSG.catMotor}">
 	  <block type="babuino_motor_cmd"></block>
@@ -294,10 +317,14 @@
 	<category name="{$ij.MSG.catIO}">
 	  <block type="babuino_switch"></block>
 	  <block type="babuino_sensor"></block>
-	  <block type="babuino_digitalin"></block>
-	  <block type="babuino_digitalout"></block>
-	  <block type="babuino_analogin"></block>
-	  <block type="babuino_analogout"></block>
+	  <!--<block type="babuino_digitalin"></block>-->
+	  <block type="babuino_digitalin_ext"></block>
+	  <!--<block type="babuino_digitalout"></block>-->
+	  <block type="babuino_digitalout_ext"></block>
+	  <!--<block type="babuino_analogin"></block>-->
+	  <block type="babuino_analogin_ext"></block>
+	  <!--<block type="babuino_analogout"></block>-->
+	  <block type="babuino_analogout_ext"></block>
 	  <block type="babuino_setsvh"></block>
 	  <block type="babuino_servo"></block>
 	  <block type="babuino_beep"></block>
@@ -307,6 +334,16 @@
 	  <block type="babuino_serial"></block>
 	  <block type="babuino_serial_available"></block>
 	  <block type="babuino_serial_send"></block>
+	  <block type="babuino_serial_send_to_port"></block>
+	  <block type="babuino_i2c_start"></block>
+	  <block type="babuino_i2c_stop"></block>
+	  <block type="babuino_i2c_error"></block>
+	  <block type="babuino_i2c_txrx"></block>
+	  <block type="babuino_i2c_rx"></block>
 	</category>
+	<category name="{$ij.MSG.catConfig}">
+    	  <block type="babuino_config_digitalin"></block>
+    	  <block type="babuino_config_digitalout"></block>
+    	</category>
   </xml>
 {/template}

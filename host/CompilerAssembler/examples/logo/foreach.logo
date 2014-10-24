@@ -1,0 +1,22 @@
+; The foreach loop differs from the Berkeley standard by having an explicit
+; iterator variable (Berkeley Logo just has '?', which doesn't lend itself
+; to nested foreach loops)
+
+; 'i' here is the iterator variable, and is missing from Berkeley Logo
+; In this implementation the type of the iterator is a "harmonisation" of the
+; types in the list. If all the members are numbers then the iterator takes the
+; type of the most accurate type. If any of the members is a string (as is the
+; case below) then the iterator is a string. 
+; The compiler back-end is responsible for providing any casting necessary 
+; between the list member and the iterator.
+
+foreach i [5 4 '3' 2 1] 
+[
+	send :i
+	foreach j ['A' 'B' 'C']
+	[
+		send :j
+	]
+	send '\n'
+]
+

@@ -68,11 +68,11 @@ Blockly.Logo.math_single = function() {
     // Negation is a special case given its different operator precedence.
     arg = Blockly.Logo.valueToCode(this, 'NUM',
         Blockly.Logo.ORDER_UNARY_NEGATION) || '0';
-    if (arg[0] == '-') {
-      // --3 is not legal in JS.
-      arg = ' ' + arg;
-    }
-    code = '-' + arg;
+    //if (arg[0] == '-') {
+    //  // --3 is not legal in JS.
+    //  arg = ' ' + arg;
+    //}
+    code = 'neg ' + arg;
     return [code, Blockly.Logo.ORDER_UNARY_NEGATION];
   }
   if (operator == 'SIN' || operator == 'COS' || operator == 'TAN') {
@@ -86,37 +86,37 @@ Blockly.Logo.math_single = function() {
   // wrapping the code.
   switch (operator) {
     case 'ABS':
-      code = 'Math.abs(' + arg + ')';
+      code = 'abs ' + arg;
       break;
     case 'ROOT':
-      code = 'Math.sqrt(' + arg + ')';
+      code = 'sqrt ' + arg;
       break;
     case 'LN':
-      code = 'Math.log(' + arg + ')';
+      code = 'ln ' + arg;
       break;
     case 'EXP':
-      code = 'Math.exp(' + arg + ')';
+      code = 'exp ' + arg;
       break;
-    case 'POW10':
-      code = 'Math.pow(10,' + arg + ')';
-      break;
+    //case 'POW10':
+    //  code = 'Math.pow(10,' + arg + ')';
+    //  break;
     case 'ROUND':
-      code = 'Math.round(' + arg + ')';
+      code = 'round ' + arg ;
       break;
     case 'ROUNDUP':
-      code = 'Math.ceil(' + arg + ')';
+      code = 'ceil ' + arg;
       break;
     case 'ROUNDDOWN':
-      code = 'Math.floor(' + arg + ')';
+      code = 'floor ' + arg;
       break;
     case 'SIN':
-      code = 'Math.sin(' + arg + ' / 180 * Math.PI)';
+      code = 'sin ' + arg; //'Math.sin(' + arg + ' / 180 * Math.PI)';
       break;
     case 'COS':
-      code = 'Math.cos(' + arg + ' / 180 * Math.PI)';
+      code = 'cos ' + arg; //'Math.cos(' + arg + ' / 180 * Math.PI)';
       break;
     case 'TAN':
-      code = 'Math.tan(' + arg + ' / 180 * Math.PI)';
+      code = 'tan ' + arg; //'Math.tan(' + arg + ' / 180 * Math.PI)';
       break;
   }
   if (code) {
@@ -126,21 +126,21 @@ Blockly.Logo.math_single = function() {
   // wrapping the code.
   switch (operator) {
     case 'LOG10':
-      code = 'Math.log(' + arg + ') / Math.log(10)';
+      code = 'log10 ' + arg; //'Math.log(' + arg + ') / Math.log(10)';
       break;
     case 'ASIN':
-      code = 'Math.asin(' + arg + ') / Math.PI * 180';
+      code = 'asin ' + arg; //'Math.asin(' + arg + ') / Math.PI * 180';
       break;
     case 'ACOS':
-      code = 'Math.acos(' + arg + ') / Math.PI * 180';
+      code = 'acos ' + arg; //'Math.acos(' + arg + ') / Math.PI * 180';
       break;
     case 'ATAN':
-      code = 'Math.atan(' + arg + ') / Math.PI * 180';
+      code = 'atan ' + arg; //'Math.atan(' + arg + ') / Math.PI * 180';
       break;
     default:
       throw 'Unknown math operator: ' + operator;
   }
-  return [code, Blockly.Logo.ORDER_DIVISION];
+  return [code, Blockly.Logo.ORDER_FUNCTION_CALL]; //[code, Blockly.Logo.ORDER_DIVISION];
 };
 
 Blockly.Logo.math_constant = function() {
@@ -150,12 +150,12 @@ Blockly.Logo.math_constant = function() {
 };
 
 Blockly.Logo.math_constant.CONSTANTS = {
-  PI: ['Math.PI', Blockly.Logo.ORDER_MEMBER],
-  E: ['Math.E', Blockly.Logo.ORDER_MEMBER],
-  GOLDEN_RATIO: ['(1 + Math.sqrt(5)) / 2', Blockly.Logo.ORDER_DIVISION],
-  SQRT2: ['Math.SQRT2', Blockly.Logo.ORDER_MEMBER],
-  SQRT1_2: ['Math.SQRT1_2', Blockly.Logo.ORDER_MEMBER],
-  INFINITY: ['Infinity', Blockly.Logo.ORDER_ATOMIC]
+  PI: ['PI', Blockly.Logo.ORDER_MEMBER],
+  E: ['E', Blockly.Logo.ORDER_MEMBER],
+  //GOLDEN_RATIO: ['(1 + Math.sqrt(5)) / 2', Blockly.Logo.ORDER_DIVISION],
+  SQRT2: ['SQRT2', Blockly.Logo.ORDER_MEMBER],
+  SQRT1_2: ['SQRT1_2', Blockly.Logo.ORDER_MEMBER]//,
+  //INFINITY: ['Infinity', Blockly.Logo.ORDER_ATOMIC]
 };
 
 Blockly.Logo.math_number_property = function() {

@@ -1,0 +1,709 @@
+/~
+   /*
+   Copyright 2014 Murray Lang
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.	
+   
+   The format of this file is as specified for JS/CC: 
+		http://jscc.phorward-software.com/
+   Kudos to Jan Max Meyer for providing such a useful tool free of charge.
+
+   This file describes a parser for an assembly language based on the byte
+   codes of the Babuino Virtual Machine. These codes are based on Cricket
+   Logo, but are more comprehensive.
+   */
+~/
+	
+	
+[*
+
+//--------------------------------------------------------------------------
+// My stuff
+
+var Scope             = require('../common/Scope');
+var Types             = require('../common/Types');
+var AST               = require('../common/Ast');
+AssemblerAst          = require('./AssemblerAst');
+var ConfigNode        = require('../common/ConfigNode');
+var EmptyNode         = require('../common/EmptyNode');
+BaseTypeNode          = require('./AstNodes/BaseTypeNode');
+DotNode               = require('./AstNodes/DotNode');
+OriginNode            = require('./AstNodes/OriginNode');
+AddressExpressionNode = require('./AstNodes/AddressExpressionNode');
+GlobalNode            = require('./AstNodes/GlobalNode');
+ProcedureNode         = require('./AstNodes/ProcedureNode');
+ReturnNode            = require('./AstNodes/ReturnNode');
+BlockNode             = require('./AstNodes/BlockNode');
+LabelNode             = require('./AstNodes/LabelNode');
+EobNode               = require('./AstNodes/EobNode');
+DataNode              = require('./AstNodes/DataNode');
+CodePointerNode       = require('./AstNodes/CodePointerNode');
+VariablePointerNode   = require('./AstNodes/VariablePointerNode');
+ImmediateNode         = require('./AstNodes/ImmediateNode');
+ExpressionNode        = require('./AstNodes/ExpressionNode');
+SizeOfNode            = require('./AstNodes/SizeOfNode');
+InstructionNode       = require('./AstNodes/InstructionNode');
+RepeatNode            = require('./AstNodes/RepeatNode');
+ParamsNode            = require('./AstNodes/ParamsNode');
+LocalsNode            = require('./AstNodes/LocalsNode');
+AlignNode             = require('./AstNodes/AlignNode');
+DeclarationNode       = require('./AstNodes/DeclarationNode');
+SectionNode           = require('./AstNodes/SectionNode');
+ConfigsNode           = require('./AstNodes/ConfigsNode');
+SetNode               = require('./AstNodes/SetNode');
+EndNode               = require('./AstNodes/EndNode');
+
+var _ast = new AssemblerAst(null);
+
+*]
+
+!	' |\r|\t'
+
+	"\n|;[^\n]*\n"        NL
+    "baud\s*:\s*[0-9]+"             Baud            [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "databits\s*:\s*[5-8]"          DataBits        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "stopbits\s*:\s*[1-2]"          StopBits        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "parity\s*:\s*(odd|even|none)"  Parity          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "[0-9]+\s*:\s*[A-Za-z]\.[0-7]"  PortAssignment  [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "[A-Za-z]+\.[A-Za-z][A-Za-z0-9]*" LibDotCode    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"begin"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"byte"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"uint8"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"short"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"int16"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"bool"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "span"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "int8"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "uint16"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "int32"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "uint32"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "float"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "double"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "string"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "strlen"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "cptr"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "global"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "local"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "param"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"block"						                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"eob"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"return"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "exit"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"((str)?|u?[bsifdpq]?)output"	Output         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"repeat"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"if"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ifelse"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"beep"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"waituntil"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"loop"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"forever"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"((str)?|u?[bsifd]?)foreach" Foreach            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"wait"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"timer"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"resett"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"((str)?|u?[bsifd]?)send"    Send               [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"((str)?|u?[bsifd]?)sendn"   Sendn              [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"((str)?|u?[bsifd]?)slot"    Slot               [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"serial"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"newserial\?" NewSerial                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"random"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?add"     Add                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?sub"	    Sub                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?mul"     Mul                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?div"     Div                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?mod"     Mod                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifdq]?eq"      Eq                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?gt"      Gt                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?lt"      Lt                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "u?[bsifd]?le"	    Le                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "u?[bsifd]?ge"	    Ge                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "u?[bsifdq]?ne"      Ne                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"and"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"or"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"xor"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"not"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bitand"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bitor"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bitxor"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bitnot"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"((str)?|a?u?[bsifdpq]?)set"   Set                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"((str)?|a?u?[bsifdpq]?)get"   Get                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"record"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"recall"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"resetdp"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"setdp"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"erase"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"when"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"erase"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"on"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"onfor"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"off"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"thisway"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"thatway"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"rd"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"setpower"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"brake"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	'sensor[1-8]'	Sensorn                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	'switch[1-8]'	Switchn                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ledon"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ledoff"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"setsvh"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"svr"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"svl"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"motors"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "servos"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"i2cstart"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"i2cstop"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"i2ctxrx"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"i2crx"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"i2cerr"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"error"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"getport"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"setport"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ain"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "aout"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "din"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "dout"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "digitalin"                             [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "digitalout"                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "analogin"                              [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "analogout"                             [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsi]?bitand"    BitAnd                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsi]?bitor"	    BitOr                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsi]?bitxor"	BitXor                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsi]?bitnot"    BitNot                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsi]?ashift"    Ashift                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsi]?lshift"    Lshift                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsi]?rotate"    Rotate                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"while"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"serialn"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"newserialn\?" NewSerialn                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"sensor"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"switch"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"randomxy"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"call"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"push"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"chkpoint"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"rollback"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"do"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"for"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"goto"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	
+	"u?[bsifd]?min"     Min                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"u?[bsifd]?max"     Max                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[bsifd]?abs"       Abs                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[bsifd]?neg"       Neg                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+    "array"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"list"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"withuint8"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withint16"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withuint16"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withint32"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withuint32"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withfloat"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withdouble"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"witharray"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withlist"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"withptr"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	
+	"u?[bsifdpq]?tostr"   ToStr                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	
+	"btos"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"btoi"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"btof"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"btod"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ubtos"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ubtoi"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ubtof"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ubtod"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"stob"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"stoi"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"usstob"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ustoi"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"stof"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ustof"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"stod"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ustod"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"itob"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"itos"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"itof"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"uitob"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"uitof"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"itod"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"uitod"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ftoc"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ftos"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ftoi"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ftod"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"dtoc"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"dtos"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"dtoi"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"dtof"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"[fd]?pow"      Pow                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?sqr"      Sqr                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?sqrt"     Sqrt                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?exp"      Exp                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?sin"      Sin                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?cos"      Cos                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?tan"      Tan                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?asin"     Asin                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?acos"     Acos                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?atan"     Atan                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?atan2"    Atan2                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?sinh"     Sinh                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?cosh"     Cosh                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?tanh"     Tanh                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?hypot"    Hypot                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?ln"       Ln                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?log10"    Log10                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"[fd]?rnd"      Rnd                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?trunc"    Trunc                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?floor"    Floor                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?ceil"     Ceil                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"[fd]?isnan"    IsNan                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"[fd]?isinf"    IsInf                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+
+	"invalid"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+	"\.global"                  Global      [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\.org"                     Org         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\.config"                  DotConfig   [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\.endconfig"               EndConfig   [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.data"                    Data        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.text"                    Text        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.align"                   Align       [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.rept"                    Rept        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.endr"                    Endr        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.proc"                    Proc        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.endproc"                 EndProc     [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.params"                  Params      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.endparams"               EndParams   [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.locals"                  Locals      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.endlocals"               EndLocals   [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.end"                     End         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.byte"                    Byte        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.double"                  Double      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.int"                     Int         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.long"                    Long        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.short"                   Short       [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.single"                  Single      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.ptr"                     Pointer     [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.asciz"                   Asciz       [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\.set"                     Set         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\."                        Dot         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "config"
+    "sizeof"                    SizeOf          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "true"                      True                [* %match = { value: 1, token: %match, offset: %offset}; *]
+    "false"                     False               [* %match = { value: 0, token: %match, offset: %offset}; *]
+    "\"([^\"]|\"\")*\""         _String             [* var str = %match.substr( 1, %match.length - 2);
+                                                       str = str.replace("\\r", "\r");
+                                                       str = str.replace("\\n", "\n");
+                                                       str = str.replace("\\t", "\t");
+                                                       %match = { value: str, token: %match, offset: %offset};*]
+    "[A-Za-z_][A-Za-z0-9_]*\:"	Label               [* %match = { value: %match.substr( 0, %match.length - 1), token: %match, offset: %offset}; *]
+    "[A-Za-z_][A-Za-z0-9_]*"	Symbol              [* %match = { value: %match, token: %match, offset: %offset}; *]
+	'-?[0-9]+'	                DecInteger			[* %match = { value: parseInt(%match), token: %match, offset: %offset}; *]
+	'0b[0-9]+'	                BinInteger			[* %match = { value: parseInt(%match.substr(2), 2), token: %match, offset: %offset}; *]
+	'0x[0-9]+'	                HexInteger			[* %match = { value: parseInt(%match.substr(2), 16), token: %match, offset: %offset}; *]
+    "[0-9]*\.[0-9]*"            Float		        [* %match = { value: parseFloat(%match), token: %match, offset: %offset}; *]
+
+    "\("
+    "\)"
+    ","
+	";"
+	;
+
+<	"\|"          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "&"          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    ;
+
+<	"\+"          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\-"          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	;
+
+<	"/"          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\*"          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"%"          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	;
+
+##
+
+Program:		Program Stmt				[*  if (%2 !== undefined && %2 != null)
+                                                {
+                                                    _ast.appendNode(%2);
+                                                }
+                                            *]
+				|
+				;
+
+Stmt:			  ConfigList
+                | Instruction
+				| Directive
+				| NL                        [* %% = new EmptyNode(); *]
+				|
+				;
+
+Subsection:     DecInteger                  [* %% = new ImmediateNode(%1); *]
+      			|                           [* %% = new EmptyNode(); *]
+      			;
+
+Directive:      Global  Symbol NL            [* %% = new GlobalNode(%2); *]
+                | Text  Subsection NL        [* %% = new SectionNode(%1, %2); *]
+                | Data  Subsection NL        [* %% = new SectionNode(%1, %2); *]
+                | Org AddrExp NL             [* %% = new OriginNode(%1, %2); *]
+                | Set Symbol ',' Value       [* %% = new SetNode(%1, %2, %4); *]
+                | End NL                     [* %% = new EndNode(%1); *]
+                | Declaration
+                ;
+
+ConfigList:      DotConfig NL ConfigDecls EndConfig NL [* %% = new ConfigsNode(%1, %3); *]
+                ;
+
+ConfigDecls:    ConfigDecls ConfigDecl              [* %% = AST.concatNodes(%1, %2); *]
+                |
+                ;
+
+ConfigDecl:       digitalin PortList NL               [* %% = new ConfigNode(%1, %2); *]
+                | digitalout PortList NL              [* %% = new ConfigNode(%1, %2); *]
+                | analogin PortList NL                [* %% = new ConfigNode(%1, %2); *]
+                | analogout PortList NL               [* %% = new ConfigNode(%1, %2); *]
+                | Send DecInteger NL                  [* %% = new ConfigNode(%1, %2); *]
+                | serial DecInteger SerialParams NL   [* %% = new ConfigNode(%1, %2, %3); *]
+                ;
+
+PortAssignments:      PortList
+					| PortAssignList
+					;
+
+PortList:             PortList DecInteger                   [* %% = AST.concatNodes(%1, %2); *]
+                    | PortList ',' DecInteger               [* %% = AST.concatNodes(%1, %3); *]
+					|
+					;
+
+PortAssignList:       PortAssignList PortAssignment         [* %% = AST.concatNodes(%1, %2); *]
+                    | PortAssignList ',' PortAssignment     [* %% = AST.concatNodes(%1, %3); *]
+                    |
+				    ;
+
+SerialParams:         SerialParams SerialParam              [* %% = AST.concatNodes(%1, %2); *]
+                    | SerialParams ',' SerialParam          [* %% = AST.concatNodes(%1, %3); *]
+                    |
+                    ;
+
+SerialParam:          Baud
+                    | DataBits
+                    | StopBits
+                    | Parity
+                    ;
+
+ProcDecl:       Label Proc NL ProcStmts EndProc NL    [* %% = new ProcedureNode(%1, %4); *]
+                ;
+
+ProcStmts:      ProcStmts ProcStmt				[* %% = AST.concatNodes(%1, %2); *]
+                |
+                ;
+
+ProcStmt:       ParamsList
+                | LocalsList
+                | Instruction
+				| NL                                [* %% = new EmptyNode(); *]
+                ;
+
+
+
+ParamsList:     Params NL LocalsDecls EndParams  NL  [* %% = new ParamsNode(%1, %3); *]
+				;
+
+
+
+LocalsList:     Locals NL LocalsDecls EndLocals  NL  [* %% = new LocalsNode(%1, %3); *]
+				;
+
+LocalsDecls:    LocalsDecls LocalsDecl                [* %% = AST.concatNodes(%1, %2); *]
+				|
+				;
+
+LocalsDecl:		  Label BaseTypeDecl NL          [* %% = new DeclarationNode(%1, %2); *]
+                | Label ArrayDecl NL             [* %% = new DeclarationNode(%1, %2); *]
+                | Label NL BaseTypeDecl NL       [* %% = new DeclarationNode(%1, %3); *]
+                | Label NL ArrayDecl NL          [* %% = new DeclarationNode(%1, %3); *]
+                | NL
+                ;
+
+ArrayDecl:      Rept Expression NL BaseTypeDecl NL Endr  [* %% = new RepeatNode(%1, %2, %4); *]
+				;
+
+BaseTypeDecl:     DataType Expression         [* %% = AST.appendChildren(%1, %2); *]
+                | DataType StringLiteral     [* %% = AST.appendChildren(%1, %2); *]
+				;
+
+Declarations:   Declarations Declaration    [* %% = AST.concatNodes(%1, %2); *]
+                |
+				;
+
+Declaration:      Label BaseTypeDecl NL       [* %% = new DeclarationNode(%1, %2); *]
+                | Label ArrayDecl NL          [* %% = new DeclarationNode(%1, %2); *]
+                | Label AddrExp NL          [* %% = new DeclarationNode(%1, %3); *]
+                | Label NL BaseTypeDecl NL       [* %% = new DeclarationNode(%1, %3); *]
+                | Label NL ArrayDecl NL          [* %% = new DeclarationNode(%1, %3); *]
+                | Label NL AddrExp NL          [* %% = new DeclarationNode(%1, %3); *]
+                | AddrExp  NL
+                | Align DecInteger NL         [* %% = new AlignNode(%1, %2); *]
+                | Label NL                  [* %% = new LabelNode(%1); *]
+                | ProcDecl
+				;
+
+
+
+Instruction:	  UnaryInstr NL		    	[* %% = new InstructionNode(%1); *]
+				| BinaryInstr NL
+				| block NL                  [* %% = new BlockNode(%1); /* Length arg will be calculated later. */ *]
+				| eob NL                    [* %% = new EobNode(%1); *]
+				| return NL                 [* %% = new ReturnNode(%1); *]
+				;
+
+BinaryInstr:	  byte	 Expression			[* %% = new DataNode(%1, %2); *]
+                | uint8	 Expression			[* %% = new DataNode(%1, %2); *]
+                | int8	 Expression			[* %% = new DataNode(%1, %2); *]
+				| short	 Expression			[* %% = new DataNode(%1, %2); *]
+				| int16	 Expression			[* %% = new DataNode(%1, %2); *]
+				| uint16 Expression			[* %% = new DataNode(%1, %2); *]
+				| int32	 Expression			[* %% = new DataNode(%1, %2); *]
+                | uint32 Expression			[* %% = new DataNode(%1, %2); *]
+                | float Expression			[* %% = new DataNode(%1, %2); *]
+                | double Expression			[* %% = new DataNode(%1, %2); *]
+                | bool	 Expression			[* %% = new DataNode(%1, %2); *]
+                | span	 Expression			[* %% = new DataNode(%1, %2); *]
+                | string StringLiteral      [* %% = new DataNode(%1, %2); *]
+                | cptr	 Symbol			    [* %% = new CodePointerNode(%1, %2); *]
+                | global Symbol			    [* %% = new VariablePointerNode(%1, %2); *]
+                | local Symbol			    [* %% = new VariablePointerNode(%1, %2); *]
+                | param Symbol			    [* %% = new VariablePointerNode(%1, %2); *]
+
+				;
+
+UnaryInstr:       LibDotCode
+                | config
+                | begin
+				| Output
+				| repeat
+				| if
+				| ifelse
+				| goto
+				| beep
+				| waituntil
+				| loop
+				| for
+				| forever
+				| Foreach
+				| wait
+				| timer
+				| resett
+				| Send
+				| Sendn
+				| Slot
+				| serial
+				| serialn
+				| NewSerial
+				| NewSerialn
+				| random
+				| randomxy
+				| i2cstart
+				| i2cstop
+				| i2crx
+				| i2ctxrx
+				| i2cerr
+				| Add
+				| Sub
+				| Mul
+				| Div
+				| Mod
+				| Eq
+				| Gt
+				| Lt
+				| Le
+				| Ge
+				| Ne
+				| And
+				| Or
+				| Xor
+				| Not
+				| BitAnd
+                | BitOr
+                | BitXor
+                | BitNot
+                | Ashift
+                | Lshift
+                | Rotate
+				| Set
+				| Get
+				| record
+				| recall					
+				| resetdp					
+				| setdp						
+				| erase						
+				| when						
+				| erase						
+				| on						
+				| onfor						
+				| off						
+				| thisway					
+				| thatway					
+				| rd						
+				| setpower					
+				| brake						
+				| ledon						
+				| ledoff					
+				| setsvh					
+				| svr						
+				| svl						
+				| motors
+				| servos
+				| while						
+				| do
+				| call
+				| sensor
+				| Sensorn
+				| switch
+				| Switchn
+                | ain
+                | aout
+                | din
+                | dout
+				| push
+				| pop
+				| chkpoint
+				| rollback
+				| exit
+				| Min
+                | Max
+                | Abs
+                | Neg
+                | Pow
+                | Sqr
+                | Sqrt
+                | Exp
+                | Sin
+                | Cos
+                | Tan
+                | Asin
+                | Acos
+                | Atan
+                | Atan2
+                | Sinh
+                | Cosh
+                | Tanh
+                | Hypot
+                | Ln
+                | Log10
+                | Rnd
+                | Trunc
+                | Floor
+                | Ceil
+                | IsNan
+                | IsInf
+                | ToStr
+                | btos
+                | btoi
+                | btof
+                | btod
+                | ubtos
+                | ubtoi
+                | ubtof
+                | ubtod
+                | stob
+                | ustob
+                | stoi
+                | ustoi
+                | stof
+                | ustof
+                | stod
+                | ustod
+                | itob
+                | utob
+                | itos
+                | itof
+                | uitof
+                | itod
+                | uitod
+                | ftob
+                | ftos
+                | ftoi
+                | ftod
+                | dtob
+                | dtos
+                | dtoi
+                | dtof
+                | strlen
+    			;
+
+AddrExp:          AddrExp '-' AddrExp                   [* %% = new AddressExpressionNode(%2, %1, %3); *]
+                | AddrExp '+' AddrExp                   [* %% = new AddressExpressionNode(%2, %1, %3); *]
+                | Dot                                   [* %% = new DotNode(%1); *]
+                | Value
+                | '(' AddrExp ')'					    [* %% = %2; *]
+                ;
+
+Expression:		Expression '-' Expression				[* %% = new ExpressionNode(%2, %1, %3); *]
+				| Expression '\+' Expression		    [* %% = new ExpressionNode(%2, %1, %3); *]
+				| Expression '\*' Expression			[* %% = new ExpressionNode(%2, %1, %3); *]
+				| Expression '/' Expression				[* %% = new ExpressionNode(%2, %1, %3); *]
+				| Expression '%' Expression				[* %% = new ExpressionNode(%2, %1, %3); *]
+				| Expression '\|' Expression			[* %% = new ExpressionNode(%2, %1, %3); *]
+				| Expression '&' Expression				[* %% = new ExpressionNode(%2, %1, %3); *]
+				| '(' Expression ')'					[* %% = %2; *]
+				| Value
+				;
+
+Boolean:        True
+				| False
+				;
+
+Value:			  DecInteger                            [* %% = new ImmediateNode(%1); *]
+				| BinInteger                            [* %% = new ImmediateNode(%1); *]
+				| HexInteger                            [* %% = new ImmediateNode(%1); *]
+				| Float                                 [* %% = new ImmediateNode(%1); *]
+				| Boolean                               [* %% = new ImmediateNode(%1); *]
+				| SizeOf '(' DataType ')'               [* %% = new SizeOfNode(%1, %3); *]
+				| Symbol                                [* %% = new ImmediateNode(%1); *]
+				;
+
+StringLiteral:  _String	                                [* %% = new ImmediateNode(%1); *]
+			    ;
+
+DataType:         Byte                                  [* %% = new BaseTypeNode(%1); *]
+                | Double                                [* %% = new BaseTypeNode(%1); *]
+                | Int                                   [* %% = new BaseTypeNode(%1); *]
+                | Long                                  [* %% = new BaseTypeNode(%1); *]
+                | Short                                 [* %% = new BaseTypeNode(%1); *]
+                | Single                                [* %% = new BaseTypeNode(%1); *]
+                | Pointer                               [* %% = new BaseTypeNode(%1); *]
+                | Asciz                                 [* %% = new BaseTypeNode(%1); *]
+                ;
+
+[*
+module.exports.parse = __BasmCCparse;
+module.exports.ast   = _ast;
+*]

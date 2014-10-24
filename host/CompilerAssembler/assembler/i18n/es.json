@@ -1,0 +1,22 @@
+{
+	"usage: BabuinoAssembler.js <basm file in> <byte code file out>": "uso: BabuinoAssembler.js <basm archivo en> <archivo de código de bytes>",
+	"Parse error near >%s<, expecting '%s'":				"Error de análisis cerca >%s<, esperando '%s'",
+	"Debug":												"Depurar",
+	"Info":													"Información",
+	"Error":                                                "Error",
+	"Warning":                                              "Advertencia",
+	"Error reading file %s: %s":							"Error al leer archivo %s: %s",
+	"Assembling file %s":									"Archivo montaje %s",
+	"Error assembling file %s: %s":							"Error archivo de ensamblaje %s: %s",
+	"Writing byte codes to file %s":						"Escribir códigos de bytes a archivo %s",
+	"Error writing output file %s: %s":						"Archivo de salida Error al escribir %s: %s",
+	"There are no codes defined for '%s'":					"No hay códigos definidos para '%s'",
+	"Library '%s' not found":								"Biblioteca '%s' no encontrado",
+	"There are no codes defined for '%s' in library '%s'":	"No hay códigos definidos para '%s' en la biblioteca '%s'",
+	"Parameters can only be defined within a procedure":	"Los parámetros sólo se pueden definir en un procedimiento",
+	"Local variables can only be defined within a procedure":	"Las variables locales sólo pueden definirse dentro de un procedimiento",
+	"An 'eob' instruction does not have a matching 'block': instruction": "Una instrucción 'eob' no tiene una instrucción de juego 'block'",
+	"Cannot resolve variable '%s'":							"No se puede resolver la variable '%s'",
+	"Unable to resolve label '%s'":							"No se puede resolver la etiqueta '%s'",
+	"Custom sections such as '%s' are not supported":		"Las secciones personalizadas, tales como '%s' no son compatibles"
+}

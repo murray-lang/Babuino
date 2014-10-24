@@ -1,0 +1,142 @@
+	.global _start	; currently ignored
+
+	
+	.data
+	; Global variables are stored on the stack. The declarations below are
+	; translated into instructions that push the values onto the stack.
+	; Their byte offsets on the stack are their 'addresses'
+onString:	.asciz	"On"
+piStr:	.asciz	"          "	; Initialised with spaces to allocate the size
+myPi:	.single		3.141592653589793
+value:	.asciz	"    "
+
+	; Note that the foreach iterators are pointers so that they can point to
+	; the list items in-situ on the stack. This has two advantages:
+	; 	- A copy operation is avoided
+	;	- There is no need to allocate a variable.
+	; The latter is important because the required length could be difficult to
+	; determine accurately.
+nextInput:	.ptr		0
+nextStr:	.ptr		0
+	
+	.text
+_start:
+	uint8		7		; List items (digital pins)
+	uint8		6
+	uint8		4
+	uint8		3
+	uint8		2
+	uint8		5		; Number of items
+	config.din			; make all of the above digital pins inputs
+	global		myPi	; address of myPi
+	fget				; get its value onto the stack
+	ftostr				; replace the float with its string representation
+	global		piStr	; address of piStr
+	strset				; put the string on the stack into piStr
+	global		myPi
+	fget
+	fsend				; send the float as a (network byte order) binary
+	string		"\n"	; String literal directly onto the stack
+	strsend
+	global		piStr
+	strget
+	strsend
+	string		"\n"
+	strsend
+	global		piStr
+	strget
+	strlen
+	ubsend
+	string		"\n"
+	strsend
+	block
+	int16		7			; List items (digital pins)
+	int16		6
+	int16		4
+	int16		3
+	int16		2
+	uint8		5			; Number of items
+	global		nextInput	; Iterator variable address
+	block					; Start of outer foreach block
+	string		""			; Place holder for return value from selectString()
+	chkpoint				; Clear the stack back to this point after calling
+	string		"Off"		; Arguments from right to left. String literal
+	global		onString	; The on string is obtained from a variable
+	strget					
+	global		nextInput	; The address of the outer iterator (pointer)
+	pget					; get the pointer value on the stack first...
+	sget					; ...and use that to obtain the input pin number (short)
+	stob					; din takes a byte as the pin number so convert it
+	din						; Get the digital input value (boolean)
+		; Now push the total number of bytes taken by the arguments.
+		; (Note that 'sizeof(.asciz)' just returns the size of a pointer. That's
+		; all thats pushed onto the main stack. The strings themselves go onto a
+		; separate stack.) chkpoint and rollback operate on both stacks.
+	span		sizeof(.byte) + sizeof(.asciz) + sizeof(.asciz)
+	cptr		selectString	; Address of selectString function
+	call
+	rollback				; Clear all the arguments from the stack
+		; The string returned by selectString is now at the top of the stack
+	global		value		; Put the string into the value variable		
+	strset
+	string		"\n"		; inner foreach list items, right to left
+	global		value
+	strget
+	string		" is "
+	global		nextInput	; pin number from iterator and converted to a string
+	pget
+	sget
+	stostr
+	string		"Digital input "
+	uint8		5			; Number of list items
+	global		nextStr		; inner iterator address
+	block					; Start of inner foreach block
+	global		nextStr		; Get the next iterator value (string
+	pget
+	strget
+	strsend					; Send it
+	eob						; end of inner foreach block
+	strforeach				; inner foreach statement
+	eob						; end of outer foreach block
+	sforeach				; outer foreach statement
+	int16		10			; wait period
+	wait
+	eob						; end of forever block
+	forever
+	exit					; goodbye
+
+;-------------------------------------------------------------------------------
+; selectString() function
+; Return the second argument if the first argument is true.
+; Return the third argument if the first argument is false.
+;-------------------------------------------------------------------------------	
+selectString:		.proc
+		; Parameters declared in order, left to right.
+		; These provide the offsets used to calculate their addresses on the 
+		; stack.
+	.params
+	sel:	.byte		0	; Booleans are stored as bytes
+	str1:	.asciz	""
+	str2:	.asciz	""
+	.endparams
+
+	begin
+	param		sel			; Convert the param offset of sel to a stack address  
+	qget					; ifelse condition ('q' prefix means boolean)
+	block					; Start of ifelse 'then' block
+	param		str1		; return the value of the str1 parameter
+	strget
+	stroutput
+	return
+	eob						; End of 'then' block
+	block					; Start of 'else' block
+	param		str2		; return the value of the str2 parameter
+	strget
+	stroutput
+	return
+	eob						; end of 'else' block
+	ifelse					; ifelse test performed here
+	return
+	.endproc
+	
+	.end

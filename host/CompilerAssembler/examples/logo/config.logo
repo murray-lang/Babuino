@@ -1,0 +1,19 @@
+; In many cases the I/O configuration of the target hardware is fixed and
+; understood, in which case there is no need to waste program space on
+; configuration. In other cases, particularly in systems that have a large
+; number of I/O ports, they will need to be configured for the application.
+; the following commands provide this capability. (More will come in future)
+
+; The digital I/O configurations assume some kind of logical pin assignment
+; such as is found with Arduinos.
+
+	; Provide a list of logical digital I/O ports that will be inputs
+config digitalin [1 2 3 4]
+	; Provide a list of logical digital I/O ports that will be outputs
+config digitalout [5 6 7 8]
+	; Specify the stream type and port to be used by the default send command.
+	; Alternatives at the time of writing are 'serial' and 'ethernet'.
+	; The port numbers are 1-based
+config send serial 1
+	; Configure the parameters of the given serial port
+config serial 1 [baud:9600 databits:8 stopbits:1 parity:none]

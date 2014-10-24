@@ -1,0 +1,194 @@
+	.global _start
+
+	
+	.data
+i2cData:
+	.rept 4
+		.single		0.0
+	.endr
+i2cOffsets:
+	.rept 4
+		.single		0.0
+	.endr
+i2cScales:
+	.rept 4
+		.single		0.0
+	.endr
+checkCal:	.single		0.0
+err:	.int		0
+	
+	.text
+_start:
+	float		2.0
+	int16		1
+	global		i2cScales
+	afset
+	float		2.0
+	int16		2
+	global		i2cScales
+	afset
+	float		2.0
+	int16		3
+	global		i2cScales
+	afset
+	float		0.0
+	int16		1
+	global		i2cOffsets
+	afset
+	float		0.0
+	int16		2
+	global		i2cOffsets
+	afset
+	float		0.0
+	int16		3
+	global		i2cOffsets
+	afset
+	float		0.0
+	chkpoint
+	float		3.14
+	int16		0
+	span		sizeof(.short) + sizeof(.single)
+	cptr		calibrate
+	call
+	rollback
+	global		checkCal
+	fset
+	global		checkCal
+	fget
+	fsend
+	uint32		0
+	chkpoint
+	global		i2cData
+	int16		1
+	span		sizeof(.short) + sizeof(.ptr)
+	cptr		getI2CData
+	call
+	rollback
+	global		err
+	uiset
+	global		err
+	uiget
+	uint32		0
+	uieq
+	block
+	global		i2cData
+	uint8		1
+	uint8		4
+	psendn
+	eob
+	if
+	exit
+	
+getI2CData:		.proc
+	.params
+	address:	.short		0
+	out:	.ptr		0
+	.endparams
+
+	begin
+	.locals
+	txbuff:
+	.rept 4
+		.byte		0
+	.endr
+	rxbuff:
+	.rept 4
+		.byte		0
+	.endr
+	err1:	.int		0
+	i:	.short		0
+	value:	.byte		0
+	.endlocals
+
+	uint8		3
+	int16		1
+	local		txbuff
+	aubset
+	uint8		5
+	int16		2
+	local		txbuff
+	aubset
+	uint8		7
+	int16		3
+	local		txbuff
+	aubset
+	i2cstart
+	uint16		1000
+	uint8		4
+	local		rxbuff
+	uint8		4
+	local		txbuff
+	uint16		1
+	i2ctxrx
+	i2cerr
+	local		err1
+	uiset
+	i2cstop
+	local		err1
+	uiget
+	uint32		0
+	uieq
+	block
+	local		i
+	int16		0
+	int16		3
+	int16		1
+	block
+	local		i
+	sget
+	local		rxbuff
+	aubget
+	local		value
+	ubset
+	float		0.0
+	chkpoint
+	local		value
+	ubget
+	ubtof
+	local		i
+	sget
+	span		sizeof(.short) + sizeof(.single)
+	cptr		calibrate
+	call
+	rollback
+	local		i
+	sget
+	param		out
+	pget
+	afset
+	eob
+	for
+	eob
+	if
+	local		err1
+	uiget
+	uioutput
+	return
+	return
+	.endproc
+	
+calibrate:		.proc
+	.params
+	index:	.short		0
+	value:	.single		0.0
+	.endparams
+
+	begin
+	param		value
+	fget
+	param		index
+	sget
+	global		i2cScales
+	afget
+	fmul
+	param		index
+	sget
+	global		i2cOffsets
+	afget
+	fadd
+	foutput
+	return
+	return
+	.endproc
+	
+	.end

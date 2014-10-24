@@ -1,0 +1,21 @@
+;-------------------------------------------------------------------------------
+; A simplistic example of using trigonometric function sin
+;-------------------------------------------------------------------------------
+make "george 1.0
+array [fred! 5]		; An array of 5 floats ('!' borrowed from old VB)
+
+for [i 0 4 1]
+[
+	aset :fred :i sin PI / (:george * (:i + 1))
+]
+
+	; Send the (binary, non-human-readable) data
+send aget :fred 0	; Send only the first element of fred
+send 1 :fred 4		; Send the entire array
+
+	; send the data as text using tostring
+for [i 0 4 1]
+[
+	send tostring aget :fred :i
+	send '\n'
+]

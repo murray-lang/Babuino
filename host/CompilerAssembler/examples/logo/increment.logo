@@ -1,0 +1,18 @@
+;-------------------------------------------------------------------------------
+; This is an example from the Berkeley Logo reference manual.
+; It demonstrates the passing of an argument to a function by reference,
+; allowing the function to modify the external variable.
+;-------------------------------------------------------------------------------
+
+MAKE "X 3.14
+INCREMENT "X		; Note that ':X' would normally be used to pass the argument
+
+TO INCREMENT :VAR
+		; VAR is a pointer. 'THING' dereferences it.
+		; Note that the first argument of MAKE is :VAR instead of the usual "VAR
+		; "VAR would provide the address of (parameter) VAR. :VAR provides the
+		; address of X
+	MAKE :VAR (THING :VAR)+1	
+END
+
+

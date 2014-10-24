@@ -39,7 +39,7 @@ Blockly.Logo.lists_create_with = function() {
     code[n] = Blockly.Logo.valueToCode(this, 'ADD' + n,
         Blockly.Logo.ORDER_COMMA) || 'null';
   }
-  code = '[' + code.join(', ') + ']';
+  code = '[' + code.join(' ') + ']';
   return [code, Blockly.Logo.ORDER_ATOMIC];
 };
 

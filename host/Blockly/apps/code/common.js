@@ -21,8 +21,8 @@
  * @fileoverview JavaScript for Blockly code demo (language-neutral).
  * @author fraser@google.com (Neil Fraser)
  */
- 
- var cricketComms = new CricketProgrammer("COM9", commsNormalCallback, commsErrorCallback);
+
+var cricketComms = new CricketProgrammer("COM9", commsNormalCallback, commsErrorCallback);
  
 (	function()
 	{
@@ -187,11 +187,13 @@ function tabClick(id) {
  */
 function renderContent() {
   var content = document.getElementById('content_' + selected);
+  var consoleTextarea = document.getElementById('textarea_console');
   // Initialize the pane.
   if (content.id == 'content_blocks') {
     // If the workspace was changed by the XML tab, Firefox will have performed
     // an incomplete rendering due to Blockly being invisible.  Rerender.
     Blockly.mainWorkspace.renderBlocks();
+
   } 
   
   else if (content.id == 'content_xml') {
@@ -223,12 +225,14 @@ function renderContent() {
 	try
 	{
 		basmTextarea.value = compileLogo(code);
+        basmTextarea.focus();
 	}
 	catch (err)
 	{
-		basmTextarea.value = err.message;
+        consoleTextarea.focus();
+		//basmTextarea.value = err.message;
 	}
-	basmTextarea.focus();
+
   }
   else if (content.id == 'content_out') 
   {
@@ -243,8 +247,7 @@ function renderContent() {
 	}
 	catch (logoerr)
 	{
-		outTextarea.value = logoerr.message;
-		consoleTextarea.focus();
+       consoleTextarea.focus();
 		return;
 	}
 		// then assemble to cricket codes
@@ -256,13 +259,14 @@ function renderContent() {
 	}
 	catch (basmerr)
 	{
-		outTextarea.value = basmerr.message;
+        consoleTextarea.focus();
+        return;
 	}
 	outTextarea.focus();
   }
   else if (content.id == 'content_console') {
-	var consoleTextarea = document.getElementById('textarea_console');
-    consoleTextarea.focus();
+
+	consoleTextarea.focus();
   }
 }
 
@@ -340,6 +344,7 @@ function discard() {
     Blockly.mainWorkspace.clear();
     window.location.hash = '';
   //}
+    currentBlockFile = null;
 }
 
 function compileLogo(code)
@@ -351,15 +356,18 @@ function compileLogo(code)
 		{
 			bsm += str;
 		};
+    /*
 	var errorOutput = 
 		function (str)
 		{
 			err += str;
 		};
-	var bl = new BabuinoLogo();
-	var err_count = bl.compile(code, output, errorOutput);
+		*/
+    var formatter = new MessageFormatter('./i18n', 'es', logToConsole, logToConsole, logToConsole, logToConsole);
+    var bl = new BabuinoLogo(output, formatter);
+	var err_count = bl.compile(code);
 	if (err_count >0)
-		throw new Error(err);
+		throw new Error();
 	return bsm;	
 }
 
@@ -370,16 +378,20 @@ function assembleBasm(code)
 	var output = 
 		function (str)
 		{
-			cricket += str + "\n";
+			cricket += str; // + "\n";
 		};
+    /*
 	var errorOutput = 
 		function (str)
 		{
 			err += str;
 		};
-	var err_count = as.parse(code, output, errorOutput);
+		*/
+    var formatter = new MessageFormatter('./i18n', 'es', logToConsole, logToConsole, logToConsole, logToConsole);
+    var ba = new BabuinoAssembler(output, formatter);
+	var err_count = ba.assemble(code);
 	if (err_count >0)
-		throw new Error(err);
+		throw new Error();
 	return cricket;	
 }
 
@@ -472,7 +484,7 @@ function onClickLaunch()
 	catch (basmerr)
 	{
 		var consoleTextarea = document.getElementById('textarea_console');
-		consoleTextarea.value = basmerr.message;
+		//consoleTextarea.value = basmerr.message;
 		consoleTextarea.focus();
 		return;
 	}

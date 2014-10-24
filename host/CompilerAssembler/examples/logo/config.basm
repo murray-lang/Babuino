@@ -1,0 +1,42 @@
+		.global _start
+		
+		; These definitions are provided by the compiler to improve readability
+	.set SEND_SERIAL, 0
+	.set SEND_ETHERNET, 1
+	.set DATABITS_5, 0x50
+	.set DATABITS_6, 0x60
+	.set DATABITS_7, 0x70
+	.set DATABITS_8, 0x80
+	.set PARITY_NONE, 0x0
+	.set PARITY_ODD, 0x4
+	.set PARITY_EVEN, 0x8
+	.set STOPBITS_1, 0x1
+	.set STOPBITS_2, 0x2
+
+	
+	.data
+	
+	.text
+_start:
+	uint8		4			; Port numbers (right to left)
+	uint8		3
+	uint8		2
+	uint8		1
+	uint8		4			; Number of list items
+	config.din
+	uint8		8			; Port numbers (right to left)
+	uint8		7
+	uint8		6
+	uint8		5
+	uint8		4			; Number of list items
+	config.dout
+	uint8		1			; Port
+	uint8		SEND_SERIAL	; serial please
+	config.send
+	uint8		1			; Port
+	uint32		9600		; Baud is an unsigned 32 bit int
+	uint8		DATABITS_8 + PARITY_NONE + STOPBITS_1 ; Other serial parameters
+	config.serial
+	exit
+	
+	.end

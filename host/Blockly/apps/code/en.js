@@ -19,7 +19,10 @@ var MSG = {
 	catMotor: 'Motor Control',
 	catIO: 'Input/Output',
 	catComms: 'Communications',
-	// Misc text.
+    catArrays: 'Arrays',
+    catPointers: 'Pointers',
+    catConfig: 'Configuration',
+ 	// Misc text.
 	blocks: 'Blocks',
 	badXml: 'Error parsing XML:\n%1\n\nAbandon changes?',
 	badCode: 'Program error:\n%1',

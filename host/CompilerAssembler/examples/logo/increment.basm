@@ -1,0 +1,43 @@
+;-------------------------------------------------------------------------------
+; This is the compiler output for the INCREMENT example from the Berkeley Logo
+; reference.
+;-------------------------------------------------------------------------------
+	.global _start
+
+	
+	.data
+X:	.single		3.14
+	
+	.text
+_start:
+	chkpoint			; Remember the stack state so the arg can be cleaned up
+	global		X				; Address of X is the argument
+	span		sizeof(.ptr)	; Size of the arguments
+	cptr		INCREMENT
+	call
+	rollback					; Clean argument off the stack
+	exit
+
+;-------------------------------------------------------------------------------
+; INCREMENT
+; Increment the contents of the variable whose address is supplied as the
+; argument.
+;-------------------------------------------------------------------------------	
+INCREMENT:		.proc
+	.params
+	VAR:	.ptr		0
+	.endparams
+
+	begin
+	param		VAR		; Convert the parameter offset to a stack offset
+	pget				; Get the pointer contained by VAR
+	fget				; Get the float pointed to
+	float		1		; Put the increment amount on the stack
+	fadd				; Add the top two floats
+	param		VAR		; Get the pointer again
+	pget
+	fset				; Give the variable the new value
+	return
+	.endproc
+	
+	.end

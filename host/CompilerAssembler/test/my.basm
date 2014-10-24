@@ -1,0 +1,17 @@
+	.global _start
+
+	
+	.data
+foo:	.byte		true
+	
+	.text
+_start:
+	global		foo
+	qget
+	block
+	beep
+	eob
+	if
+	exit
+	
+	.end

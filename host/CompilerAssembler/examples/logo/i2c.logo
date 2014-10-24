@@ -1,0 +1,77 @@
+;-------------------------------------------------------------------------------
+; This example demonstrates the use of i2c.
+; The i2c commands are based on the semantics of the ChibiOS i2c driver.
+; This is not intended as an exemplar of how to use scales and offsets to
+; process i2c data - it's just one way that demonstrates the language features.
+;-------------------------------------------------------------------------------
+array [i2cData! 4]		; The '!' is borrowed from old VB and means float
+array [i2cOffsets! 4]
+array [i2cScales! 4]
+
+aset :i2cScales  0 2.0	; Initialise the scales and offsets
+aset :i2cScales  1 2.0
+aset :i2cScales  2 2.0
+aset :i2cScales  3 2.0
+aset :i2cOffsets 0 0.0
+aset :i2cOffsets 1 0.0
+aset :i2cOffsets 2 0.0
+aset :i2cOffsets 3 0.0
+
+make "checkCal calibrate 0 3.14	; A simple little test
+send :checkCal
+
+	; Call getI2CData() (below) to populate the array
+	; 1 is the i2c address
+	; Returns a 32 bit error code
+make "err getI2CData 1 "i2cData
+if :err = 0							; 0 means no error
+[
+	send 1 "i2cData 4				; Send the array to the default stream
+]
+
+;-------------------------------------------------------------------------------
+; getI2CData()
+; Read data from the given i2c address and put the results in the given array
+; Fixed at 4 values for this example.
+; Calls calibrate() to calibrate the raw data.
+;-------------------------------------------------------------------------------
+to getI2CData :address :out
+		; Local variables		
+	bytearray [txbuff 4]   ;bytearray is a type specific to this variant of Logo
+	bytearray [rxbuff 4]
+	local err
+
+		; Put transmit data into the buffer
+	aset :txbuff 0 1
+	aset :txbuff 1 3
+	aset :txbuff 2 5
+	aset :txbuff 3 7
+
+	i2cstart
+	i2ctxrx 1 "txbuff 4 "rxbuff 4 1000	; Read-thru-write semantics
+	make "err i2cerr					; i2cerr holds the last i2c error
+	i2cstop
+	if :err = 0							; 0 means no error
+	[
+		for [i 0 3 1]
+		[
+			make "value aget :rxbuff :i		; Get raw data point
+				; Store calibrated data in the output array
+			aset (thing :out) :i calibrate :i :value  	
+		]
+	]
+	output :err
+end
+
+;-------------------------------------------------------------------------------
+; calibrate()
+; Apply global scale and offset values to the given value identified by the
+; given index.
+;-------------------------------------------------------------------------------
+to calibrate :index :value
+	output :value * (aget :i2cScales :index) + (aget :i2cOffsets :index)
+end
+
+
+
+

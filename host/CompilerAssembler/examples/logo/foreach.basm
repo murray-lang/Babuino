@@ -1,0 +1,54 @@
+	.global _start
+
+	
+	.data
+	; Iterators cannot be variables of the type corresponding to the iterator
+	; in the high level language (eg. double, string etc.). The main reason is 
+	; that they can refer to strings of an arbitrary length, making memory 
+	; allocation problematic. Instead they are pointers to the stack location
+	; of the current list item, which negates the need to copy the items to an
+	; iterator variable.
+i:	.ptr		0		
+j:	.ptr		0		 
+	
+	.text
+_start:
+		; List items are pushed onto the stack from right to left
+	int16		1		; Item 5	
+	stostr				; convert it to the iterator type (string)
+	int16		2		; Item 4
+	stostr
+	string		"3"		; Item 3 (already a string so no conversion necessary)
+	int16		4		; Item 2
+	stostr
+	int16		5		; Item 1
+	stostr
+	uint8		5		; The number of items is pushed last (so seen first!)
+	global		i		; Iterator variable is pushed for foreach to see
+	block				; Start of the outer foreach block
+						; (Note that execution jumps from here to the eob the
+						; first time around, then the foreach firmware sends
+						; execution back to the first block instruction below.)
+	global		i		; Address of the iterator variable
+	pget				; Get the pointer contained in the iterator
+	strget				; It points to a string on the stack. Get it.
+	strsend				; Send the string to the default stream.
+	string		"C"		; Item 3
+	string		"B"		; Item 2
+	string		"A"		; Item 1
+	uint8		3		; Number of list items
+	global		j		; Location of iterator variable
+	block				; Start of the inner foreach block
+	global		j		; Same as the outer block (but with inner iterator
+	pget
+	strget
+	strsend
+	eob
+	strforeach			; Inner foreach
+	string		"\n"
+	strsend
+	eob
+	strforeach			; Outer foreach
+	exit
+	
+	.end

@@ -1,0 +1,24 @@
+; This example demonstrates:
+;    - the use of Basic-like suffixes on identifiers to specify types
+;    - the passing of an array by reference to a procedure
+
+; This variant of Logo borrows the old Microsoft basic conventions found here:
+; http://msdn.microsoft.com/en-us/library/s9cz43ek.aspx
+; ...for specifying the type of a variable.
+
+	; The '#' after tom indicates that it's an array of doubles
+array [tom# 5]
+
+	; Note that the usual syntax of 'myfunc :myarg' passes the myarg variable by value
+	; The line below passes the 'name' (address in any other programming language) of
+	; the variable tom by using the '"' prefix instead.
+fillArray "tom
+
+to fillArray :toFill
+		; Note that toFill contains a pointer to an array. The 'thing' below
+		; dereferences that pointer (doing the same thing as *toFill in C) 
+		; Of course we're not actually filling the array, only one element.
+	aset (thing :toFill) 0 6.28 * 2.0R	
+end
+
+

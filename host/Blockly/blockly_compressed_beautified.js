@@ -455,8 +455,8 @@ Blockly.Names.prototype.getDistinctName = function (a, b)
 };
 Blockly.Names.prototype.safeName_ = function (a)
 {
-    a ? (a = encodeURI(a.replace(/ /g, "_"))
-        .replace(/[^\w]/g, "_"), -1 != "0123456789".indexOf(a[0]) && (a = "my_" + a)) : a = "unnamed";
+    //a ? (a = encodeURI(a.replace(/ /g, "_"))
+    //    .replace(/[^\w]/g, "_"), -1 != "0123456789".indexOf(a[0]) && (a = "my_" + a)) : a = "unnamed";
     return a
 };
 Blockly.Names.equals = function (a, b)
@@ -14076,6 +14076,20 @@ Blockly.showContextMenu_ = function (a, b)
         };
     d.text = Blockly.MSG_HELP;
     d.callback = function () {};
+    c.push(d);
+    d = {
+        enabled: 1
+    };
+    d.text = "Download workspace as SVG";
+    d.callback = function ()
+        {
+
+            var svgtext = "<?xml version='1.0'?>\n<?xml-stylesheet href='blockly.css' type='text/css' ?>";
+            svgtext += new XMLSerializer().serializeToString(Blockly.svg);
+            var blob = new Blob([svgtext], {type: "text/svg;charset=utf-8"});
+            saveAs(blob, "blockly.svg");
+        };
+
     c.push(d);
     Blockly.ContextMenu.show(a, b, c)
 };

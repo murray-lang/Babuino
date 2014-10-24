@@ -100,8 +100,8 @@ Blockly.Language.math_single.OPERATORS =
      ['-', 'NEG'],
      ['ln', 'LN'],
      ['log10', 'LOG10'],
-     ['e^', 'EXP'],
-     ['10^', 'POW10']];
+     ['e^', 'EXP']];//,
+     //['10^', 'POW10']];
 
 Blockly.Language.math_single.TOOLTIPS = {
   ROOT: Blockly.LANG_MATH_SINGLE_TOOLTIP_ROOT,
@@ -163,10 +163,10 @@ Blockly.Language.math_constant = {
 Blockly.Language.math_constant.CONSTANTS =
     [['\u03c0', 'PI'],
      ['e', 'E'],
-     ['\u03c6', 'GOLDEN_RATIO'],
+     //['\u03c6', 'GOLDEN_RATIO'],
      ['sqrt(2)', 'SQRT2'],
-     ['sqrt(\u00bd)', 'SQRT1_2'],
-     ['\u221e', 'INFINITY']];
+     ['sqrt(\u00bd)', 'SQRT1_2']]//,
+     //['\u221e', 'INFINITY']];
 
 Blockly.Language.math_number_property = {
   // Check if a number is even, odd, prime, whole, positive, or negative

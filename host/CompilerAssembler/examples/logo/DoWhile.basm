@@ -1,0 +1,26 @@
+	.global _start
+
+	
+	.data
+fred:	.byte		true
+	
+	.text
+_start:
+	do
+	block
+	ledon
+	int16		1
+	wait
+	ledoff
+	int16		9
+	wait
+	bool		false
+	global		fred
+	qset
+	eob
+	global		fred
+	qget
+	while
+	exit
+	
+	.end

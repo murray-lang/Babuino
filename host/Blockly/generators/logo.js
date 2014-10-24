@@ -37,12 +37,15 @@ Blockly.Logo = Blockly.Generator.get('Logo');
  * @private
  */
 Blockly.Logo.addReservedWords(
-    'to','end','output','repeat','if','ifelse','beep','while','waituntil','loop','forever','wait','stop','reset','send','make',
-	'resetdp','record','erase','on','onfor','off','thisway','thatway','rd','brake','setsvh','svr','svl','setpower','ledon','ledoff',
-	'i2c_start','i2c_stop','i2c_read','i2c_write','show','and','or','xor','not','timer','serial','newir?','random','recall',
-	'sensor1','sensor2','sensor3','sensor4','sensor5','sensor6','sensor7','sensor8',
-	'switch1','switch2','switch3','switch4','switch5','switch6','switch7','switch8',
-	'highbyte','lowbyte','bsend','bsr','when','whenoff','setdp','fastsend'	
+    'to','end','output','repeat','if','ifelse','beep','while','waituntil',
+    'loop','forever','wait','stop','reset','send','make', 'resetdp','record',
+    'erase','on','onfor','off','thisway','thatway','rd','brake','setsvh','svr',
+    'svl','setpower','ledon','ledoff',	'i2c_start','i2c_stop','i2c_read',
+    'i2c_write','show','and','or','xor','not','timer','serial','newir?',
+    'random','recall',	'sensor1','sensor2','sensor3','sensor4','sensor5',
+    'sensor6','sensor7','sensor8','switch1','switch2','switch3','switch4',
+    'switch5','switch6','switch7','switch8', 'highbyte','lowbyte','bsend',
+    'bsr','when','whenoff','setdp','fastsend', 'item', 'error'
 );
 
 /**
@@ -158,10 +161,14 @@ Blockly.Logo.scrubNakedValue = function(line) {
  */
 Blockly.Logo.quote_ = function(string) {
   // TODO: This is a quick hack.  Replace with goog.string.quote
+  /*
   string = string.replace(/\\/g, '\\\\')
                  .replace(/\n/g, '\\\n')
                  .replace(/\%/g, '\\%')
                  .replace(/'/g, '\\\'');
+  */
+    string = string.replace(/\%/g, '\\%')
+                   .replace(/'/g, '\\\'');
   return '\'' + string + '\'';
 };
 
@@ -186,7 +193,7 @@ Blockly.Logo.scrub_ = function(block, code) {
     // Collect comment for this block.
     var comment = block.getCommentText();
     if (comment) {
-      commentCode += Blockly.Generator.prefixLines(comment, '# ') + '\n';
+      commentCode += Blockly.Generator.prefixLines(comment, '; ') + '\n';
     }
     // Collect comments for all value arguments.
     // Don't collect comments for nested statements.

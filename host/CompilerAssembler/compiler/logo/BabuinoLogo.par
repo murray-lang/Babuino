@@ -1,0 +1,604 @@
+/~
+   /*-----------------------------------------------------------------------------
+   Copyright 2014 Murray Lang
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+   -----------------------------------------------------------------------------   
+   
+   The format of this file is as specified for JS/CC: 
+		http://jscc.phorward-software.com/
+   Kudos to Jan Max Meyer for providing such a useful tool free of charge.
+   
+   This file describes a parser for a variant of the Logo programming language.
+   It's based on Cricket Logo, but I've endeavoured to provide a somewhat more
+   comprehensive set of Logo language features. I've used Berkley Logo as my
+   reference and have not added any key words that are not in the Berkley 
+   standard.
+   */
+~/
+	
+	
+[*
+var Types                   = require('../../common/Types');
+var AST                     = require('../../common/Ast');
+var lang                    = require('../common/CompilerAst');
+var ConfigNode              = require('../../common/ConfigNode');
+var CompilerNodeType        = require('../common/AstNodes/NodeType');
+var VariableNode            = require('../common/AstNodes/VariableNode').VariableNode;
+var VariableNodeKind        = require('../common/AstNodes/VariableNode').VariableNodeKind;
+var VarAssignmentNode       = require('../common/AstNodes/VarAssignmentNode').VarAssignmentNode;
+var VarAssignmentNodeKind   = require('../common/AstNodes/VarAssignmentNode').VarAssignmentNodeKind;
+var _ImmediateNode           = require('../common/AstNodes/ImmediateNode').ImmediateNode;
+var createStringLiteralNode = require('../common/AstNodes/ImmediateNode').createStringLiteralNode;
+var ProcedureNode           = require('../common/AstNodes/ProcedureNode');
+var ControlNode             = require('../common/AstNodes/ControlNode').ControlNode;
+var ControlNodeKind         = require('../common/AstNodes/ControlNode').ControlNodeKind;
+var CallNode                = require('../common/AstNodes/CallNode');
+var ArgumentsNode           = require('../common/AstNodes/ArgumentsNode').ArgumentsNode;
+var concatArguments         = require('../common/AstNodes/ArgumentsNode').concatArguments;
+var ListNode                = require('../common/AstNodes/ListNode');
+var CommandNode             = require('../common/AstNodes/CommandNode').CommandNode;
+var CommandNodeKind         = require('../common/AstNodes/CommandNode').CommandNodeKind;
+var MotorNode               = require('../common/AstNodes/MotorNode').MotorNode;
+var MotorNodeKind           = require('../common/AstNodes/MotorNode').MotorNodeKind;
+var setMotorsToken          = require('../common/AstNodes/MotorNode').setMotorsToken;
+var VarFetchNode            = require('../common/AstNodes/VarFetchNode').VarFetchNode;
+var VarFetchNodeKind        = require('../common/AstNodes/VarFetchNode').VarFetchNodeKind;
+var ExpressionNode          = require('../common/AstNodes/ExpressionNode').ExpressionNode;
+var ExpressionNodeKind      = require('../common/AstNodes/ExpressionNode').ExpressionNodeKind;
+var DeclarationNode         = require('../common/AstNodes/DeclarationNode').DeclarationNode;
+var DeclarationNodeKind     = require('../common/AstNodes/DeclarationNode').DeclarationNodeKind;
+var createArrayDeclaration  = require('../common/AstNodes/DeclarationNode').createArrayDeclaration;
+var createStringDeclaration = require('../common/AstNodes/DeclarationNode').createStringDeclaration;
+var setDeclarationToken     = require('../common/AstNodes/DeclarationNode').setDeclarationToken;
+var InputNode               = require('../common/AstNodes/InputNode').InputNode;
+var InputNodeKind           = require('../common/AstNodes/InputNode').InputNodeKind;
+var BlockNode               = require('../common/AstNodes/BlockNode');
+
+var _ast = new AST.AbstractSyntaxTree();
+
+*]
+!	" |\r|\n|\t|;[^\n]*\n"
+
+    "config"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "baud:[0-9]+"             Baud            [* %match = { value: (%match).toLowerCase(), token: %match, offset: %offset}; *]
+    "databits:[5-8]"          DataBits        [* %match = { value: (%match).toLowerCase(), token: %match, offset: %offset}; *]
+    "stopbits:[1-2]"          StopBits        [* %match = { value: (%match).toLowerCase(), token: %match, offset: %offset}; *]
+    "parity:(odd|even|none)"  Parity          [* %match = { value: (%match).toLowerCase(), token: %match, offset: %offset}; *]
+    "[0-9]+\s*\:\s*[A-Za-z]\.[0-7]"  PortAssignment  [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"if"                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ifelse"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"repeat"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"loop"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"for"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"foreach"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"forever"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"while"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"do\.while"						DoWhile         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"to"                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"end"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"tag"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"goto"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"stop"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"make"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"wait"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"waituntil"                                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ledon"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ledoff"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"beep"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"on"                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"onfor"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"off"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"thisway"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"thatway"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"rd"                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"brake"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"setpower"                                      [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"and"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"or"                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"xor"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"not"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"bitand"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bitor"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bitxor"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bitnot"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ashift"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "lshift"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "rotate"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"true"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"false"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"timer"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"resett"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"random"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"setsvh"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"svr"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"svl"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"resetdp"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "setdp"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"record"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"recall"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"erase"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"send"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"serial"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"ethernet"                                      [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"newserial\?"					NewSerial       [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"repcount"                                      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "thing"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "i2cstart"                                      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "i2cstop"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "i2ctxrx"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "i2crx"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "i2cerr"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"#"
+	","
+	"sensor"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"sensor[1-8]"						Sensorn     [* %match = { value: %match.substr( 6, 1 ), token: %match, offset: %offset}; *]
+	"switch[1-8]"						Switchn     [* %match = { value: %match.substr( 6, 1 ), token: %match, offset: %offset}; *]
+    "digitalin"                                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "digitalout"                                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "analogin"                                      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "analogout"                                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "array"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "bytearray"                                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "aset"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "aget"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "setitem"                                       [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "item"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "local"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "min"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "max"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "abs"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "neg"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "pow"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "sqr"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "sqrt"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "exp"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "sin"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "cos"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "tan"                                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "asin"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "acos"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "atan"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "atan2"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "sinh"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "cosh"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "tanh"                                          [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "hypot"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ln"                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "log10"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+    "round"      Round                             [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "trunc"    Trunc                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "floor"    Floor                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ceil"     Ceil                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+
+    "isnan"    IsNan                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "isinf"    IsInf                           [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "string"                                        [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "tostring"                                      [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "ascii"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "count"                                         [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\["                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\]"                                            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\("
+    "\)"
+    "output"                            Output      [* %match = { value: %match,       token: %match, offset: %offset}; *]
+    "E"                                             [* %match = { value: Math.E,       token: %match, offset: %offset}; *]
+    "PI"                                            [* %match = { value: Math.PI,      token: %match, offset: %offset}; *]
+    "LN2"                                           [* %match = { value: Math.LN2,     token: %match, offset: %offset}; *]
+    "LN10"                                          [* %match = { value: Math.LN10,    token: %match, offset: %offset}; *]
+    "LOG2E"                                         [* %match = { value: Math.LOG2E,   token: %match, offset: %offset}; *]
+    "LOG10E"                                        [* %match = { value: Math.LOG10E,  token: %match, offset: %offset}; *]
+    "SQRT1_2"                                       [* %match = { value: Math.SQRT1_2, token: %match, offset: %offset}; *]
+    "SQRT2"                                         [* %match = { value: Math.SQRT2,   token: %match, offset: %offset}; *]
+
+    "[A-Za-z_][A-Za-z0-9_]*[%&!#\$]?"	Identifier  [* %match = { value: %match, token: %match, offset: %offset}; *]
+    "\"[A-Za-z_][A-Za-z0-9_]*[%&!#\$]?"	NameOf	    [* %match = { value: %match.substr( 1, %match.length - 1 ), token: %match, offset: %offset}; *]
+    "[A-Za-z_][A-Za-z0-9_]*\""			Label		[* %match = { value: %match.substr( 0, %match.length - 1 ), token: %match, offset: %offset}; *]
+    "\:[A-Za-z_][A-Za-z0-9_]*[%&!#\$]?"	ValueOf	    [* %match = { value: %match.substr( 1, %match.length - 1 ), token: %match, offset: %offset}; *]
+    "[a-h]+,"			    			Motors		[* %match = { value: %match.substr( 0, %match.length - 1 ), token: %match, offset: %offset}; *]
+    "[n-u]+,"			    			Servos		[* %match = { value: %match.substr( 0, %match.length - 1 ), token: %match, offset: %offset}; *]
+    "\'([^\']|\'\')*\'"					StringLit		[* var value = %match.substr( 1, %match.length - 2 );
+                                                       value = value.replace( /''/g, "\'" );
+                                                       %match = { value: value, token: %match, offset: %offset};
+                                                     *]
+
+    "-?[0-9]+S?"						Short		[* var value;
+                                                       if (%match.charAt(%match.length - 1) == 'S')
+                                                           value = %match.substr( 0, %match.length - 1);
+                                                       else
+                                                           value = %match.substr( 0, %match.length);
+                                                       %match = { value: value, token: %match, offset: %offset};
+                                                     *]
+    "[0-9]+US"							UShort		[* %match = { value: %match.substr( 0, %match.length - 2 ), token: %match, offset: %offset}; *]
+    "-?[0-9]+I"							Integer		[* %match = { value: %match.substr( 0, %match.length - 1 ), token: %match, offset: %offset}; *]
+    "[0-9]+UI"						    UInteger	[* %match = { value: %match.substr( 0, %match.length - 2 ), token: %match, offset: %offset}; *]
+
+    "[0-9]*\.[0-9]*F?"	                Float		[* var value;
+                                                       if (%match.charAt(%match.length - 1) == 'F')
+                                                           value = %match.substr( 0, %match.length - 1);
+                                                       else
+                                                           value = %match.substr( 0, %match.length);
+                                                       %match = { value: value, token: %match, offset: %offset};
+                                                     *]
+    "[0-9]*\.[0-9]*R"	                Double		[* %match = { value: %match.substr( 0, %match.length - 1 ), token: %match, offset: %offset}; *]
+    ;
+
+
+/~ Operators to be used in expressions ~/
+>	"="                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"<>"                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"<="                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	">="                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	">"                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"<"                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+	;
+
+
+<	"\+"                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"sum"                   [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\-"                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"difference"            [* %match = { value: %match, token: %match, offset: %offset}; *]
+	;
+
+<	"/"                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"quotient"              [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"\*"                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"product"               [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"%"                     [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"modulo"                [* %match = { value: %match, token: %match, offset: %offset}; *]
+	;
+
+<   "not"                   [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"and"                   [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"or"                    [* %match = { value: %match, token: %match, offset: %offset}; *]
+	"xor"                   [* %match = { value: %match, token: %match, offset: %offset}; *]
+	;
+
+
+##
+
+Program:			Program Stmt									[* if (%2 !== undefined && %2 != null)
+																		{
+																			_ast.appendNode(%2);
+																		} 
+																	*]
+					|
+					;
+
+ConfigStmt:         config ConfigCmd                    [* %% = %2; *]
+					;
+
+ConfigCmd:            digitalin PortList               [* %% = new ConfigNode(%1, %2); *]
+					| digitalout PortList              [* %% = new ConfigNode(%1, %2); *]
+					| analogin PortList                [* %% = new ConfigNode(%1, %2); *]
+                    | analogout PortList               [* %% = new ConfigNode(%1, %2); *]
+                    | send serial Short                [* %% = new ConfigNode(
+                                                                    %1,
+                                                                    %2,
+                                                                    new _ImmediateNode([Types.uint8], %3)); *]
+                    | send ethernet Short              [* %% = new ConfigNode(
+                                                                    %1,
+                                                                    %2,
+                                                                    new _ImmediateNode([Types.uint8], %3)); *]
+					| serial Short SerialParamsList     [* %% = new ConfigNode(
+                                                                    %1,
+                                                                    new _ImmediateNode([Types.uint8], %2),
+                                                                    %3); *]
+					;
+
+PortList:          '[' Ports ']'                        [* %% = new ListNode(%2, [Types.uint8]); *]
+                    ;
+
+Ports:              Ports Short                         [* %% = AST.concatNodes(
+                                                                %1,
+                                                                new _ImmediateNode([Types.uint8], %2)); *]
+					|
+					;
+
+PortAssignments:    PortAssignments PortAssignment      [* %% = AST.concatNodes(%1, %2); *]
+                    |
+				    ;
+
+SerialParamsList:   '[' SerialParams ']'                [* %% = %2; *]
+                    ;
+
+SerialParams:       SerialParams SerialParam            [* %% = AST.concatNodes(%1, %2); *]
+                    |
+                    ;
+
+SerialParam:          Baud
+                    | DataBits
+                    | StopBits
+                    | Parity
+                    ;
+
+Block:				'[' Block_Stmt_List ']'				[* %% = new BlockNode(%1, %2, %3); *]
+					;
+
+
+Block_Stmt:			Stmt
+					|
+					;
+
+Block_Stmt_List:	Block_Stmt_List Block_Stmt						[* %% = AST.concatNodes(%1, %2); *]
+					|
+					;
+
+Proc_Stmt_List:		Proc_Stmt_List Proc_Stmt						[* %% = AST.concatNodes(%1, %2); *]
+					|
+					;
+
+Proc_Stmt:			Stmt
+                    |
+                    ;
+
+List:               '[' ListItems ']'                       [* %% = new ListNode(%2); *]
+                    ;
+
+ListItems:          ListItems Expression                    [* %% = AST.concatNodes(%1, %2); *]
+					|
+					;
+
+Param_List:			Param_List Param					    [* %% = AST.concatNodes(%1, %2); *]
+					|
+					;
+
+Param:				ValueOf '[' ']'                        [* %% = new VariableNode(%1, VariableNodeKind.parameter, [Types.array(0), Types.unknown]); *]
+					| ValueOf                              [* %% = new VariableNode(%1, VariableNodeKind.parameter); *]
+					;
+
+ProcDef:			to Identifier Param_List Proc_Stmt_List end		[* %% = new ProcedureNode(%2, [Types.unknown], %3, %4); *]
+					;
+
+
+ArraySpec:          Identifier IntLike                      [* %% = createArrayDeclaration(%1, %2); *]
+					;
+
+Variable:           NameOf                                [* %% = new VariableNode(%1, VariableNodeKind.nameof); *]
+                    | ValueOf                                 [* %% = new VariableNode(%1, VariableNodeKind.valueof); *]
+					;
+
+ThingVar:            Variable
+					| thing Variable                        [* %% = lang.incrementThings(%2); *]
+					| '(' ThingVar ')'                      [* %% = %2; *]
+					;
+
+Stmt:	ConfigStmt
+        | if Expression Block 								    [* %% = new ControlNode(ControlNodeKind.if, %1, %2, %3); *]
+        | ifelse Expression Block Block 					    [* %% = new ControlNode(ControlNodeKind.ifelse, %1, %2, %3, %4); *]
+        | repeat Expression Block						    	[* %% = new ControlNode(ControlNodeKind.repeat, %1, %2, %3); *]
+        | loop Block										[* %% = new ControlNode(ControlNodeKind.forever, %1, %2); *]
+        | for '[' Identifier Expression Expression NegExp ']' Block	[*
+                                                               %% = new ControlNode(ControlNodeKind.for, %1, %3, %4, %5, %6, %8);
+                                                               *]
+        | foreach Identifier List Block                     [* %% = new ControlNode(ControlNodeKind.foreach, %1, %2, %3, %4); *]
+        | forever Block										[* %% = new ControlNode(ControlNodeKind.forever, %1, %2); *]
+        | while Expression Block 							    [* %% = new ControlNode(ControlNodeKind.while, %1, %2, %3); *]
+        | DoWhile Expression Block							    [* %% = new ControlNode(ControlNodeKind.dowhile, %1, %2, %3); *]
+        | waituntil '[' Expression ']'						    [* %% = new ControlNode(ControlNodeKind.waituntil, %1, %3); *]
+        | wait Expression									    [* %% = new ControlNode(ControlNodeKind.wait, %1, %2); *]
+        | tag Label											[* %% = new ControlNode(ControlNodeKind.tag, %1, %2); *]
+        | goto Identifier									[* %% = new ControlNode(ControlNodeKind.goto, %1, %2);*]
+        | stop												[* %% = new ControlNode(ControlNodeKind.return, %1); *]
+        | Output Expression	    						    [* %% = new ControlNode(ControlNodeKind.output, %1, %2); *]
+        | ProcCall									    	[* %% = lang.setReturnValueExpected(%1, false); *]
+        | ProcCallNoArg								    	[* %% = lang.setReturnValueExpected(%1, false); *]
+        | make ThingVar Expression 							[* %% = new VarAssignmentNode(%1, %2, VarAssignmentNodeKind.make, %3); *]
+        | make ThingVar '(' string IntLike ')'                [* %% = createStringDeclaration((%2).token, %5); *]
+        | make ThingVar '(' array IntLike ')'                [* %% = createArrayDeclaration((%2).token, %5); *]
+        | Motors  									        [* %% = new MotorNode(MotorNodeKind.motor, %1); *]
+        | Servos                                            [* %% = new MotorNode(MotorNodeKind.servo, %1); *]
+        | Motor_cmd
+        | Servo_cmd
+        | Data_cmd
+        | ledon												[* %% = new CommandNode(CommandNodeKind.ledon, %1); *]
+        | ledoff 											[* %% = new CommandNode(CommandNodeKind.ledoff, %1); *]
+        | beep 												[* %% = new CommandNode(CommandNodeKind.beep, %1); *]
+        | resett 											[* %% = new CommandNode(CommandNodeKind.resett, %1); *]
+        | array '[' ArraySpec ']'                           [* %% = setDeclarationToken(%3, %1) ; *]
+        | bytearray '[' ArraySpec ']'                       [* %% = lang.replaceUnknownVarType(%3, [Types.uint8]); *]
+        | aset ThingVar Expression Expression                [* %% = new VarAssignmentNode(%1, %2,VarAssignmentNodeKind.aset, %4, %3); *]
+        | setitem Expression ThingVar Expression             [* %% = new VarAssignmentNode(%1, %3,VarAssignmentNodeKind.aset, %4, %2); *]
+        | local Identifier                                  [* %% = new DeclarationNode(DeclarationNodeKind.local, %1, [Types.unknown], %2); *]
+        | digitalout Expression Expression                      [* %% = new CommandNode(CommandNodeKind.digitalout, %2, %3); *]
+        | analogout Expression Expression                     [* %% = new CommandNode(CommandNodeKind.analogout, %1, %2, %3); *]
+        | i2cstart                                          [* %% = new CommandNode(CommandNodeKind.i2c, %1); *]
+        | i2cstop                                           [* %% = new CommandNode(CommandNodeKind.i2c, %1); *]
+        | i2ctxrx Expression Variable Expression Variable Expression Expression [*
+                                                                %% = new CommandNode(CommandNodeKind.i2c, %1,
+                                                                                            %2, %3, %4, %5, %6, %7); *]
+        | i2crx Expression Variable Expression Expression      [* %% = new CommandNode(CommandNodeKind.i2c, %1,
+                                                                                            %2, %3, %4, %5); *]
+        | ProcDef
+        ;
+
+Arg_List:		Arg_List Arg								[* %% = concatArguments(%1, %2);*]
+				|
+				;
+
+Arg:            Expression
+                | NameOf                                [* %% = new VariableNode(%1, VariableNodeKind.nameof); *]
+				;
+
+ProcCall:		Identifier Arg_List					    [* %% = new CallNode(%1, %2); *]
+                | '(' ProcCall ')'                      [* %% = %2; *]
+				;
+
+ProcCallNoArg:  Identifier 								[* %% = new CallNode(%1); *]
+                | '(' ProcCallNoArg ')'                 [* %% = %2; *]
+				;
+
+Motor_cmd:		on											[* %% = new CommandNode(CommandNodeKind.on, %1); *]
+				| onfor Expression 							[* %% = new CommandNode(CommandNodeKind.onfor, %1, %2); *]
+				| off 										[* %% = new CommandNode(CommandNodeKind.off, %1); *]
+				| thisway									[* %% = new CommandNode(CommandNodeKind.thisway, %1); *]
+				| thatway									[* %% = new CommandNode(CommandNodeKind.thatway, %1); *]
+				| rd										[* %% = new CommandNode(CommandNodeKind.rd, %1); *]
+				| brake										[* %% = new CommandNode(CommandNodeKind.brake, %1); *]
+				| setpower Expression							[* %% = new CommandNode(CommandNodeKind.setpower, %1, %2); *]
+				;
+
+Servo_cmd:		setsvh Expression  							[* %% = new CommandNode(CommandNodeKind.setsvh, %1, %2); *]
+				| svr Expression  								[* %% = new CommandNode(CommandNodeKind.svr, %1, %2); *]
+				| svl Expression  								[* %% = new CommandNode(CommandNodeKind.svl, %1, %2); *]
+				;
+
+Data_cmd:		resetdp										[* %% = new CommandNode(CommandNodeKind.resetdp, %1); *]
+                | setdp	Expression							    [* %% = new CommandNode(CommandNodeKind.setdp, %1, %2); *]
+				| record Expression							[* %% = new CommandNode(CommandNodeKind.record, %1, %2); *]
+				| erase Expression								[* %% = new CommandNode(CommandNodeKind.erase, %1, %2); *]
+				| send Expression							[* %% = new CommandNode(CommandNodeKind.send, %1, %2); *]
+				| send Expression Expression Expression           [* %% = new CommandNode(CommandNodeKind.send, %1, %3, %2, %4); *]
+				;
+
+Expression:		  ThingVar                           [* %% = new VarFetchNode(%1, %1, VarFetchNodeKind.variable, [Types.unknown]); *]
+				| MathExp
+				| BoolExp
+				| StringExp
+				| '(' Expression ')'							[* %% = %2; *]
+				;
+
+StringExp:      StringLit                                       [* %% = createStringLiteralNode(%1); *]
+				| tostring Expression                           [* %% = new ExpressionNode(%1, ExpressionNodeKind.convert, (%1).value, [Types.string(0)], %2); *]
+				;
+
+MathExp:		  Expression '-' Expression                 [* %% = new ExpressionNode(%2, ExpressionNodeKind.math, "sub", [Types.unknown], %1, %3); *]
+				| difference Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "sub", [Types.unknown], %1, %3); *]
+				| Expression '+' Expression               [* %% = new ExpressionNode(%2, ExpressionNodeKind.math, "add", [Types.unknown], %1, %3); *]
+				| sum Expression Expression               [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "add", [Types.unknown], %1, %3); *]
+				| Expression '*' Expression               [* %% = new ExpressionNode(%2, ExpressionNodeKind.math, "mul", [Types.unknown], %1, %3); *]
+                | product Expression Expression           [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "mul", [Types.unknown], %1, %3); *]
+                | Expression '/' Expression               [* %% = new ExpressionNode(%2, ExpressionNodeKind.math, "div", [Types.unknown], %1, %3); *]
+                | quotient Expression Expression          [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "div", [Types.unknown], %1, %3); *]
+                | Expression '%' Expression               [* %% = new ExpressionNode(%2, ExpressionNodeKind.math, "mod", [Types.unknown], %1, %3); *]
+                | modulo Expression Expression	        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "mod", [Types.unknown], %1, %3); *]
+                | MathFuncExp
+                | BitwiseExp
+				| NegExp
+				| ascii Expression                [* %% = new ExpressionNode(%1, ExpressionNodeKind.convert, (%1).value, [Types.uint8], %2); *]
+				| count Expression                [* %% = new ExpressionNode(%1, ExpressionNodeKind.convert, (%1).value, [Types.uint8], %2); *]
+				| '(' MathExp ')'				    [* %% = %2; *]
+				;
+
+MathFuncExp:      min Expression Expression             [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | max Expression Expression             [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | abs Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2); *]
+                | neg Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2); *]
+                | pow Expression Expression             [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2, %3); *]
+                | sqr Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | sqrt Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | exp Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | sin Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | cos Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | tan Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | asin Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | acos Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | atan Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | atan2 Expression Expression           [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2, %3); *]
+                | sinh Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | cosh Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | tanh Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | hypot Expression Expression           [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2, %3); *]
+                | ln Expression                      [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | log10 Expression                   [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.float], %2); *]
+                | Round Expression                     [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "rnd", [Types.float], %2); *]
+                | Trunc Expression                   [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "trunc", [Types.float], %2); *]
+                | Floor Expression                   [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "floor", [Types.float], %2); *]
+                | Ceil Expression                    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "ceil", [Types.float], %2); *]
+                ;
+
+BitwiseExp:        bitand Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | bitor  Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | bitxor Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | bitnot Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | ashift Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | lshift Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                | rotate Expression Expression        [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, (%1).value, [Types.unknown], %2, %3); *]
+                ;
+
+NegExp:			'-' NumericValue		&'*'    [* %% = new ExpressionNode(%1, ExpressionNodeKind.math, "neg", [Types.unknown], %2); *]
+				| NumericValue
+				;
+
+Value:			NumericValue
+				| BoolValue
+				| '(' Value ')'
+				;
+
+BoolExp:		  Expression '=' Expression			[* %% = new ExpressionNode(%2, ExpressionNodeKind.logic, "eq", [Types.bool], %1, %3); *]
+                | Expression '<>' Expression		[* %% = new ExpressionNode(%2, ExpressionNodeKind.logic, "ne", [Types.bool], %1, %3); *]
+				| Expression '<' Expression		 	[* %% = new ExpressionNode(%2, ExpressionNodeKind.logic, "lt", [Types.bool], %1, %3); *]
+				| Expression '>' Expression			[* %% = new ExpressionNode(%2, ExpressionNodeKind.logic, "gt", [Types.bool], %1, %3); *]
+				| Expression '<=' Expression		[* %% = new ExpressionNode(%2, ExpressionNodeKind.logic, "le", [Types.bool], %1, %3); *]
+				| Expression '>=' Expression		[* %% = new ExpressionNode(%2, ExpressionNodeKind.logic, "ge", [Types.bool], %1, %3); *]
+				| not Expression						[* %% = new ExpressionNode(%1, ExpressionNodeKind.logic, (%1).value, [Types.bool], %2); *]
+				| and Expression Expression				[* %% = new ExpressionNode(%1, ExpressionNodeKind.logic, (%1).value, [Types.bool], %2, %3); *]
+				| or Expression Expression				[* %% = new ExpressionNode(%1, ExpressionNodeKind.logic, (%1).value,  [Types.bool], %2, %3); *]
+				| xor Expression Expression				[* %% = new ExpressionNode(%1, ExpressionNodeKind.logic, (%1).value, [Types.bool], %2, %3); *]
+				| BoolValue
+				| '(' BoolExp ')'					[* %% = %2; *]
+				;
+
+BoolValue:		  true								[* %% = new _ImmediateNode([Types.bool], %1); *]
+				| false								[* %% = new _ImmediateNode([Types.bool], %1); *]
+				| Switchn							[* %% = new InputNode(InputNodeKind.switch, %1, [Types.bool], %1); *]
+				| NewSerial Expression				    [* %% = new InputNode(InputNodeKind.newserial, %1, [Types.bool], %2); *]
+				| NewSerial							[* %% = new InputNode(InputNodeKind.newserial, %1, [Types.bool]); *]
+                | digitalin	Expression				    [* %% = new InputNode(InputNodeKind.digitalin, %1, [Types.bool], %2); *]
+				| ProcCall			  				[* %% = lang.setReturnValueExpected(%1, true); *]
+				| ProcCallNoArg			  			[* %% = lang.setReturnValueExpected(%1, true); *]
+				| IsNan Expression                     [* %% = new ExpressionNode(ExpressionNodeKind.logic, "isnan", [Types.bool], %2); *]
+                | IsInf Expression                     [* %% = new ExpressionNode(ExpressionNodeKind.logic, "isinf", [Types.bool], %2); *]
+				;
+
+NumericValue:	IntLike
+				| Double							[* %% = new _ImmediateNode([Types.double], %1); *]
+				| Float							    [* %% = new _ImmediateNode([Types.float], %1); *]
+				| E							        [* %% = new _ImmediateNode([Types.float], %1); *]
+                | PI							    [* %% = new _ImmediateNode([Types.float], %1); *]
+                | LN2							    [* %% = new _ImmediateNode([Types.float], %1); *]
+                | LN10							    [* %% = new _ImmediateNode([Types.float], %1); *]
+                | LOG2E							    [* %% = new _ImmediateNode([Types.float], %1); *]
+                | LOG10E					        [* %% = new _ImmediateNode([Types.float], %1); *]
+                | SQRT1_2						    [* %% = new _ImmediateNode([Types.float], %1); *]
+                | SQRT2							    [* %% = new _ImmediateNode([Types.float], %1); *]
+                | repcount                          [* %% = new InputNode(InputNodeKind.repcount, %1, [Types.uint16]); *]
+				| recall						    [* %% = new InputNode(InputNodeKind.recall, %1, [Types.int16]); *]
+				| timer								[* %% = new InputNode(InputNodeKind.timer, %1, [Types.uint16]); *]
+				| random Expression Expression		[* %% = new InputNode(InputNodeKind.random, %1, [Types.int16], %2, %3); *]
+				| random							[* %% = new InputNode(InputNodeKind.random, %1, [Types.uint16]); *]
+				| Sensorn							[* %% = new InputNode(InputNodeKind.sensor, %1, [Types.uint16], %1); *]
+				| serial Expression					[* %% = new InputNode(InputNodeKind.serial, %1, [Types.uint16], %2); *]
+				| serial							[* %% = new InputNode(InputNodeKind.serial, %1, [Types.uint16]); *]
+				| analogin	Expression				[* %% = new InputNode(InputNodeKind.analogin, %1, [Types.uint16], %2); *]
+				| ProcCall			  				[* %% = lang.setReturnValueExpected(%1, true); *]
+				| ProcCallNoArg			  			[* %% = lang.setReturnValueExpected(%1, true); *]
+				| aget ThingVar Expression           [* %% = new VarFetchNode(%1, %2, VarFetchNodeKind.aget, [Types.unknown], %3); *]
+				| item Expression ThingVar           [* %% = new VarFetchNode(%1, %3, VarFetchNodeKind.aget, [Types.unknown], %2); *]
+				| i2cerr                            [* %% = new InputNode(InputNodeKind.i2cerr, %1, [Types.uint32]); *]
+				;
+
+IntLike:        Short								[* %% = new _ImmediateNode([Types.int16], %1); *]
+				| UShort							[* %% = new _ImmediateNode([Types.uint16], %1); *]
+				| Integer							[* %% = new _ImmediateNode([Types.int32], %1); *]
+				| UInteger							[* %% = new _ImmediateNode([Types.uint16], %1); *]
+				;
+				
+
+
+[*
+
+module.exports.parse = __LogoCCparse;
+module.exports.ast   = _ast;
+*]

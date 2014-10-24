@@ -1,0 +1,21 @@
+; This example demonstrates the harmonisation of the return type of functions
+; that return different types from different return paths.
+; The variable foo is also given the float type as a consequence.
+; See the corresponding .basm file for further comments.
+
+make "foo test_proc
+
+to test_proc
+		; This function will return a float from both return paths
+ 	ifelse true 
+	[
+		output 2	; An integer ordinarily defaults to int16 (short)
+	]
+	[
+		output 6.28 ; floating point numbers default to 32 bit float
+	]
+end
+
+
+
+

@@ -459,7 +459,33 @@ Blockly.LANG_LISTS_SET_INDEX_TOOLTIP_INSERT_FIRST = 'Inserts the item at the sta
 Blockly.LANG_LISTS_SET_INDEX_TOOLTIP_INSERT_LAST = 'Append the item to theend of a list.';
 Blockly.LANG_LISTS_SET_INDEX_TOOLTIP_INSERT_RANDOM = 'Inserts the item randomly in a list.';
 
+// Array blocks
+Blockly.LANG_ARRAY_GET_INDEX_HELPURL = '';
+Blockly.LANG_ARRAY_GET_ITEM = 'Get item #';
+Blockly.LANG_ARRAY_GET_FROM_ARRAY = 'from array';
+Blockly.LANG_ARRAY_GET_INDEX_TOOLTIP = 'Get the value from the given index of the given array.';
+
+Blockly.LANG_ARRAY_SET_INDEX_HELPURL = '';
+Blockly.LANG_ARRAY_SET_ITEM = 'Set item #';
+Blockly.LANG_ARRAY_SET_IN_ARRAY = 'in array';
+Blockly.LANG_ARRAY_SET_TO = 'to';
+Blockly.LANG_ARRAY_SET_INDEX_TOOLTIP = 'Set the value at the given index of the given array.';
 // Variables Blocks.
+/*
+Blockly.LANG_VARIABLES_ARRAY_GET_HELPURL = 'http://en.wikipedia.org/wiki/Variable_(computer_science)';
+Blockly.LANG_VARIABLES_ARRAY_GET_TITLE = 'get array item';
+Blockly.LANG_VARIABLES_ARRAY_GET_ITEM = 'items';
+Blockly.LANG_VARIABLES_ARRAY_GET_INDEX = 'index';
+Blockly.LANG_VARIABLES_ARRAY_GET_TOOLTIP = 'Returns the value of an array item.';
+Blockly.LANG_VARIABLES_ARRAY_GET_CREATE_SET = 'Create "set %1"';
+
+Blockly.LANG_VARIABLES_ARRAY_SET_HELPURL = 'http://en.wikipedia.org/wiki/Variable_(computer_science)';
+Blockly.LANG_VARIABLES_ARRAY_SET_TITLE = 'set item';
+Blockly.LANG_VARIABLES_ARRAY_SET_ITEM = 'items';
+Blockly.LANG_VARIABLES_ARRAY_SET_INDEX = 'index';
+Blockly.LANG_VARIABLES_ARRAY_SET_TOOLTIP = 'Sets this variable to be equal to the input.';
+Blockly.LANG_VARIABLES_ARRAY_SET_CREATE_GET = 'Create "get %1"';
+*/
 Blockly.LANG_VARIABLES_GET_HELPURL = 'http://en.wikipedia.org/wiki/Variable_(computer_science)';
 Blockly.LANG_VARIABLES_GET_TITLE = 'get';
 Blockly.LANG_VARIABLES_GET_ITEM = 'item';

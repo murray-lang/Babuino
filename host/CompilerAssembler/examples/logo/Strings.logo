@@ -1,0 +1,69 @@
+;-------------------------------------------------------------------------------
+; This example demonstrates the use of strings
+; IMPORTANT: Strings must use the single quote character (') because double
+; quotes cause parsing difficulty due to their use in variable references.
+;-------------------------------------------------------------------------------
+
+config digitalin  [2 3 4 6 7]	; Configure these digital pins as inputs
+
+	; onString initialised to a literal string of length 3 (incl. terminating 0)
+make "onString 'On'
+
+	; piStr needs to have a length allocated because it cannot be determined at
+	; compile time (because it is the result of a conversion).
+	; The compiler will still give a warning.			
+make "piStr (string 10)
+
+	;PI is a predefined constant.
+make "myPi PI
+	; 'tostring' converts its argument to a string. 	
+make "piStr tostring :myPi
+send :myPi		; send the raw (binary - network byte order) value
+send '\n'
+send :piStr ; send PI as a string
+send '\n'
+	; count returns the length of the string argument
+send count :piStr ; Send the length of piStr
+send '\n'
+
+	; value will hold either 'On' or 'Off' depending on the digital input.
+	; Because its length cannot be determined at compile time, it must be
+	; given an appropriate length based on developer knowledge.
+make "value (string 4)
+loop
+[
+		; Step through these input pins
+	foreach nextInput [2 3 4 6 7]
+	[
+			; Get a string based on the input value
+			; The 'on' string is a variable; the 'off' string is immediate
+		make "value selectString digitalin :nextInput :onString 'Off'
+
+			; Use foreach for crude formatting of text output.
+			; If any list item is a string then any non-string items are 
+			; converted to a string.
+			; Note that the iterator, nextInput, is one of the items
+		foreach nextStr ['Digital input ' :nextInput ' is ' :value '\n']
+		[
+			send :nextStr
+		]
+	]
+	wait 10
+]
+
+;-------------------------------------------------------------------------------
+; This function outputs a string depending on the truth of its first argument
+; sel - boolean value used to select the string
+; str1 - the string to output if sel is true
+; str1 - the string to output if sel is true
+;-------------------------------------------------------------------------------
+to selectString :sel :str1 :str2
+	ifelse :sel
+	[
+		output :str1
+	]
+	[
+		output :str2
+	]
+end
+

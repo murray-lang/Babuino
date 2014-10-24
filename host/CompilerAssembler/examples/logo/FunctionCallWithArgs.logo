@@ -1,0 +1,10 @@
+make "foo 2
+make "bar 5
+
+ledon
+wait product :foo :bar
+ledoff
+
+to product :x :y
+	output :x * :y
+end

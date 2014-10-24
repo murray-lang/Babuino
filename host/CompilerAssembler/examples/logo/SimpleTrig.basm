@@ -1,0 +1,61 @@
+	.global _start
+
+	
+	.data
+george:	.single		1.0
+fred:
+	.rept 5
+		.single		0.0
+	.endr
+i:	.short		0
+	
+	.text
+_start:
+	global		i
+	int16		0
+	int16		4
+	int16		1
+	block
+	float		3.141592653589793
+	global		george
+	fget
+	global		i
+	sget
+	int16		1
+	sadd
+	stof
+	fmul
+	fdiv
+	math.fsin
+	global		i
+	sget
+	global		fred
+	afset
+	eob
+	for
+	int16		0
+	global		fred
+	afget
+	fsend
+	global		fred
+	uint8		1
+	uint8		4
+	afsendn
+	global		i
+	int16		0
+	int16		4
+	int16		1
+	block
+	global		i
+	sget
+	global		fred
+	afget
+	ftostr
+	strsend
+	string		"\n"
+	strsend
+	eob
+	for
+	exit
+	
+	.end

@@ -1,0 +1,41 @@
+; This example demonstrates the harmonisation of the return type of functions
+; that return different types from different return paths.
+
+	.global _start
+	
+	.data
+foo:	.single		0.0 ; Floating point numbers default to 32 bits
+	
+	.text
+_start:
+	float		0.0			; Place holder for the return value
+	cptr		test_proc
+	call
+		; No parameters to foo, so no cleanup required
+		; At this point the return value is at the top of the stack
+	global		foo			; Address of foo
+	fset					; Assign the float on the stack top to foo
+	exit
+	
+test_proc:		.proc
+	begin
+	bool		true		; ifelse condition (always true)
+	block					; execution jumps to the eob first time around
+	float		2			; Because the 2 was immediate, the code was able 
+							; to be changed from the int16 default to float.
+							; This avoided the need for an 'stof' instruction
+							; to be added here.
+	foutput					; Output a float
+	return
+	eob						; execution falls to the next block first time
+	block					; execution jumps to the eob first time around
+	float		6.28
+	foutput					; Output a float
+	return
+	eob
+	ifelse					; The condition is checked here and execution jumps
+							; to the appropriate block
+	return
+	.endproc
+	
+	.end

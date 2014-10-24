@@ -1,0 +1,50 @@
+	.global _start
+
+	
+	.data
+foo:	.short		2
+bar:	.short		5
+	
+	.text
+_start:
+	ledon
+	int16		0		; Placeholder for return value from product
+	chkpoint			; Mark this place on the stack(s)
+	global		bar		; Get arguments onto the stack from right to left
+	sget
+	global		foo
+	sget
+	span		sizeof(.short) + sizeof(.short)	; Size of the arguments
+	cptr		product	; Get the code address of product	
+	call
+	rollback			; Clean up arguments (Go back to chkpoint state) 
+		; The return value is now at the top of the stack (argument for wait)
+	wait
+	ledoff
+	exit
+
+;-------------------------------------------------------------------------------
+; product()
+; Return the product of the two arguments
+;-------------------------------------------------------------------------------		
+product:		.proc
+		;This declaration provides the information necessary to calculate the
+		; relative offsets (on the stack) of the arguments.
+	.params
+	x:	.short		0
+	y:	.short		0
+	.endparams
+
+	begin
+	param		x	; Convert the relative offset to an absolute stack offset
+	sget			; get the  (short) argument
+	param		y
+	sget
+	smul			; Both arguments are now on the stack multiply them
+	soutput			; Put the result into the return value place holder
+	return			
+	return			; This second return is not necessary. It is the result of
+					; inefficiencies in code generation by the compiler.
+	.endproc
+	
+	.end

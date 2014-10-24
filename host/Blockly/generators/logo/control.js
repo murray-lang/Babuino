@@ -165,24 +165,25 @@ Blockly.Logo.controls_forEach = function() {
         '\'' + this.id + '\'') + branch;
   }
   var code;
-  var indexVar = Blockly.Logo.variableDB_.getDistinctName(
-      variable0 + '_index', Blockly.Variables.NAME_TYPE);
-  if (argument0.match(/^\w+$/)) {
-    branch = '  ' + variable0 + ' = ' + argument0 + '[' + indexVar + '];\n' +
-        branch;
-    code = 'for (var ' + indexVar + ' in  ' + argument0 + ') {\n' +
-        branch + '}\n';
-  } else {
+  //var indexVar = Blockly.Logo.variableDB_.getDistinctName(
+  //        variable0, Blockly.Variables.NAME_TYPE);
+      //variable0 + '_index', Blockly.Variables.NAME_TYPE);
+ // if (argument0.match(/^\w+$/)) {
+    //branch = '  ' + variable0 + ' = ' + argument0 + '[' + indexVar + '];\n' +
+    //    branch;
+    code = 'foreach ' + variable0 + ' ' + argument0 + '\n' +
+            '[\n' + branch + '\n]\n';
+  //} else {
     // The list appears to be more complicated than a simple variable.
     // Cache it to a variable to prevent repeated look-ups.
-    var listVar = Blockly.Logo.variableDB_.getDistinctName(
-        variable0 + '_list', Blockly.Variables.NAME_TYPE);
-    branch = '  ' + variable0 + ' = ' + listVar + '[' + indexVar + '];\n' +
-        branch;
-    code = 'var ' + listVar + ' = ' + argument0 + ';\n' +
-        'for (var ' + indexVar + ' in ' + listVar + ') {\n' +
-        branch + '}\n';
-  }
+  //  var listVar = Blockly.Logo.variableDB_.getDistinctName(
+  //      variable0 + '_list', Blockly.Variables.NAME_TYPE);
+  //  branch = '  ' + variable0 + ' = ' + listVar + '[' + indexVar + '];\n' +
+  //      branch;
+  //  code = 'var ' + listVar + ' = ' + argument0 + ';\n' +
+  //      'for (var ' + indexVar + ' in ' + listVar + ') {\n' +
+  //      branch + '}\n';
+ // }
   return code;
 };
 

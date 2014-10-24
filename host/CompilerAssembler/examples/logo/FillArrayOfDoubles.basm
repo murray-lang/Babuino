@@ -1,0 +1,38 @@
+	.global _start
+
+	
+	.data
+tom:
+	.rept 5			; tom is an array of 5 doubles
+		.double		0.0
+	.endr
+	
+	.text
+_start:
+	chkpoint					; Clear the stack back to here after calling fillArray
+	global		tom				; variable address of tom (address, not the value, is the argument)
+	span		sizeof(.ptr)	; the total length of the arguments to fillArray
+	cptr		fillArray		; code address of fillArray
+	call
+	rollback					; Clear the stack back to the last chkpoint
+	exit						
+
+;-------------------------------------------------------------------------------
+; fillArray()
+; Actually a misnamed function. It only sets one value of the array.
+;-------------------------------------------------------------------------------	
+fillArray:		.proc
+	.params
+	toFill:	.ptr		0
+	.endparams
+
+	begin
+	double		12.56		; a double on the stack
+	int16		0			; array index
+	param		toFill		; convert offset of toFill param to a global stack offset
+	pget					; toFill param is a pointer. Get it...
+	adset					; ...and use as the array address to set the array item.
+	return
+	.endproc
+	
+	.end

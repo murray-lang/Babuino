@@ -66,28 +66,72 @@ Blockly.Logo.babuino_sensor = function() {
 
 Blockly.Logo.babuino_digitalin = function() {
   var dropdown_sel_switch = this.getTitleValue('SEL_BIT');
-  var code = 'digitalin ' + dropdown_sel_switch + '\n';
+  var code = 'digitalin ' + dropdown_sel_switch;
   return [code, Blockly.Logo.ORDER_ASSIGNMENT];
+};
+
+Blockly.Logo.babuino_digitalin_ext = function() {
+    var var_bit = Blockly.Logo.valueToCode(this, 'VAR_BIT', Blockly.Logo.ORDER_ASSIGNMENT);
+    var code = 'digitalin ' + var_bit;
+    return [code, Blockly.Logo.ORDER_ASSIGNMENT];
 };
 
 Blockly.Logo.babuino_analogin = function() {
   var dropdown_sel_switch = this.getTitleValue('SEL_INPUT');
-  var code = 'analogin ' + dropdown_sel_switch + '\n';
+  var code = 'analogin ' + dropdown_sel_switch;
   return [code, Blockly.Logo.ORDER_ASSIGNMENT];
+};
+
+Blockly.Logo.babuino_analogin_ext = function() {
+    var var_port = Blockly.Logo.valueToCode(this, 'VAR_PORT', Blockly.Logo.ORDER_ASSIGNMENT);
+    var code = 'analogin ' + var_port;
+    return [code, Blockly.Logo.ORDER_ASSIGNMENT];
 };
 
 Blockly.Logo.babuino_digitalout = function() {
   var bit = this.getTitleValue('SEL_BIT');
   var var_value = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
-  var code = 'digitalout ' + bit + ' ' + var_value + '\n';
+  var code = 'digitalout ' + bit + ' ' + var_value;
   return code;
+};
+
+Blockly.Logo.babuino_digitalout_ext = function() {
+   var var_bit = Blockly.Logo.valueToCode(this, 'VAR_BIT', Blockly.Logo.ORDER_ASSIGNMENT);
+    var var_value = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
+    var code = 'digitalout ' + var_bit + ' ' + var_value;
+    return code;
 };
 
 Blockly.Logo.babuino_analogout = function() {
   var port = this.getTitleValue('SEL_OUTPUT');
   var var_value = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
-  var code = 'analogout ' + port + ' ' + var_value + '\n';
+  var code = 'analogout ' + port + ' ' + var_value;
   return code;
+};
+
+Blockly.Logo.babuino_analogout_ext = function() {
+    var var_port = Blockly.Logo.valueToCode(this, 'VAR_PORT', Blockly.Logo.ORDER_ASSIGNMENT);
+    var var_value = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
+    var code = 'analogout ' + var_port + ' ' + var_value;
+    return code;
+};
+
+Blockly.Logo.babuino_string_of_length = function() {
+    var len = Number(this.getTitleValue('VAR_STRLEN'));
+    var code = '(string ' + len + ')';
+    return [code, Blockly.Logo.ORDER_ASSIGNMENT];
+};
+
+Blockly.Logo.babuino_tostring = function() {
+    var var_val = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
+    var code = 'tostring ' + var_val;
+    return [code, Blockly.Logo.ORDER_ASSIGNMENT];
+};
+
+Blockly.Logo.babuino_stringlength = function() {
+    var var_val = Blockly.Logo.valueToCode(this, 'VAR_VALUE', Blockly.Logo.ORDER_ASSIGNMENT);
+    var code = 'count ' + var_val ;
+    return [code, Blockly.Logo.ORDER_ASSIGNMENT];
 };
 
 Blockly.Logo.babuino_setsvh = function() {
@@ -153,12 +197,12 @@ Blockly.Logo.babuino_led = function() {
 
 Blockly.Logo.babuino_random = function() {
   var code = 'random\n';
-  return code;
+  return [code, Blockly.Logo.ORDER_ASSIGNMENT];
 };
 
 Blockly.Logo.babuino_serial = function() {
   var port = this.getTitleValue('SEL_PORT');
-  var code = port == '1' ? 'serial' : 'serial ' + port;
+  var code = port == '0' ? 'serial' : 'serial ' + port;
   return [code, Blockly.Logo.ORDER_ATOMIC];
 };
 
@@ -169,12 +213,106 @@ Blockly.Logo.babuino_serial_available = function() {
 };
 
 Blockly.Logo.babuino_serial_send = function() {
+    var data = Blockly.Logo.valueToCode(this, 'VAR_DATA', Blockly.Logo.ORDER_ASSIGNMENT);
+    var code = 'send ' + data + '\n';
+
+    return code;
+};
+
+Blockly.Logo.babuino_serial_send_to_port = function() {
   var data = Blockly.Logo.valueToCode(this, 'VAR_DATA', Blockly.Logo.ORDER_ASSIGNMENT);
   var port = this.getTitleValue('SEL_PORT');
-  var code = 'send ';
-  if (port != '1')
-	code += port + ' ';
-  code += data + '\n';
-  
+  var code = 'send ' + port + ' ' + data + '\n';
+
   return code;
 };
+
+Blockly.Logo.babuino_math_atan2 = function() {
+    var arg1 = Blockly.Logo.valueToCode(this, 'VAR_ARG1', Blockly.Logo.ORDER_COMMA);
+    var arg2 = Blockly.Logo.valueToCode(this, 'VAR_ARG2', Blockly.Logo.ORDER_COMMA);
+    var code = 'atan2 ' + arg1 + ' ' + arg2;;
+    return [code, Blockly.Logo.ORDER_COMMA];
+};
+
+Blockly.Logo.babuino_math_hypot = function() {
+    var arg1 = Blockly.Logo.valueToCode(this, 'VAR_ARG1', Blockly.Logo.ORDER_COMMA);
+    var arg2 = Blockly.Logo.valueToCode(this, 'VAR_ARG2', Blockly.Logo.ORDER_COMMA);
+    var code = 'hypot ' + arg1 + ' ' + arg2;;
+    return [code, Blockly.Logo.ORDER_COMMA];
+};
+
+Blockly.Logo.babuino_math_pow = function() {
+    var arg1 = Blockly.Logo.valueToCode(this, 'VAR_ARG1', Blockly.Logo.ORDER_COMMA);
+    var arg2 = Blockly.Logo.valueToCode(this, 'VAR_ARG2', Blockly.Logo.ORDER_COMMA);
+    var code = 'pow ' + arg1 + ' ' + arg2;;
+    return [code, Blockly.Logo.ORDER_COMMA];
+};
+
+Blockly.Logo.babuino_math_min = function() {
+    var arg1 = Blockly.Logo.valueToCode(this, 'VAR_ARG1', Blockly.Logo.ORDER_COMMA);
+    var arg2 = Blockly.Logo.valueToCode(this, 'VAR_ARG2', Blockly.Logo.ORDER_COMMA);
+    var code = 'min ' + arg1 + ' ' + arg2;;
+    return [code, Blockly.Logo.ORDER_COMMA];
+};
+
+Blockly.Logo.babuino_math_max = function() {
+    var arg1 = Blockly.Logo.valueToCode(this, 'VAR_ARG1', Blockly.Logo.ORDER_COMMA);
+    var arg2 = Blockly.Logo.valueToCode(this, 'VAR_ARG2', Blockly.Logo.ORDER_COMMA);
+    var code = 'max ' + arg1 + ' ' + arg2;
+    return [code, Blockly.Logo.ORDER_COMMA];
+};
+
+Blockly.Logo.babuino_i2c_start = function() {
+    return 'i2cstart\n';
+};
+
+Blockly.Logo.babuino_i2c_stop = function() {
+    return 'i2cstop\n';
+};
+
+Blockly.Logo.babuino_i2c_error = function() {
+    return ['i2cerr', Blockly.Logo.ORDER_ATOMIC];
+};
+
+Blockly.Logo.babuino_i2c_txrx = function() {
+    var i2cAddr  = Blockly.Logo.valueToCode(this, 'VAR_I2C_ADDRESS', Blockly.Logo.ORDER_COMMA);
+    var txBuf    = Blockly.Logo.valueToCode(this, 'VAR_I2C_TXBUF', Blockly.Logo.ORDER_COMMA);
+    var txBufLen = Blockly.Logo.valueToCode(this, 'VAR_I2C_TXBUFLEN', Blockly.Logo.ORDER_COMMA);
+    var rxBuf    = Blockly.Logo.valueToCode(this, 'VAR_I2C_RXBUF', Blockly.Logo.ORDER_COMMA);
+    var rxBufLen = Blockly.Logo.valueToCode(this, 'VAR_I2C_RXBUFLEN', Blockly.Logo.ORDER_COMMA);
+    var timeout  = Blockly.Logo.valueToCode(this, 'VAR_I2C_TIMEOUT', Blockly.Logo.ORDER_COMMA);
+
+    return 'i2ctxrx ' + i2cAddr
+            + ' ' + txBuf
+            + ' ' + txBufLen
+            + ' ' + rxBuf
+            + ' ' + rxBufLen
+            + ' ' + timeout + '\n';
+};
+
+Blockly.Logo.babuino_i2c_rx = function() {
+    var i2cAddr  = Blockly.Logo.valueToCode(this, 'VAR_I2C_ADDRESS', Blockly.Logo.ORDER_COMMA);
+    var rxBuf    = Blockly.Logo.valueToCode(this, 'VAR_I2C_RXBUF', Blockly.Logo.ORDER_COMMA);
+    var rxBufLen = Blockly.Logo.valueToCode(this, 'VAR_I2C_RXBUFLEN', Blockly.Logo.ORDER_COMMA);
+    var timeout  = Blockly.Logo.valueToCode(this, 'VAR_I2C_TIMEOUT', Blockly.Logo.ORDER_COMMA);
+
+    return 'i2ctxrx ' + i2cAddr
+        + ' ' + rxBuf
+        + ' ' + rxBufLen
+        + ' ' + timeout + '\n';
+};
+
+Blockly.Logo.babuino_config_digitalin = function() {
+    var inputs = Blockly.Logo.valueToCode(this, 'LIST',
+        Blockly.Logo.ORDER_RELATIONAL) || '[]';
+
+    return 'config digitalin ' + inputs + '\n';
+};
+
+Blockly.Logo.babuino_config_digitalout = function() {
+    var outputs = Blockly.Logo.valueToCode(this, 'LIST',
+        Blockly.Logo.ORDER_RELATIONAL) || '[]';
+
+    return 'config digitalout ' + outputs + '\n';
+};
+

@@ -1,0 +1,15 @@
+;-------------------------------------------------------------------------------
+; Simplistic do.while example
+;-------------------------------------------------------------------------------
+make "fred true		; true is a keyword of this variant of Logo
+
+	; This loop should only be iterated once because of the change in the
+	; condition at the end.
+do.while :fred
+[
+	ledon
+	wait 1
+	ledoff
+	wait 9
+	make "fred false	; Make the condition false in the first iteration
+]
