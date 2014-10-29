@@ -27,16 +27,49 @@ goog.provide('Blockly.Language.babuino');
 
 goog.require('Blockly.Language');
 
+Blockly.Language.babuino_select_motors = {
+    helpUrl: 'http://www.example.com/',
+    init: function() {
+        this.setColour(290);
+        this.appendDummyInput()
+            .appendTitle("select motors");
+        this.appendDummyInput()
+            .appendTitle("a")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_A");
+        this.appendDummyInput()
+            .appendTitle(" b")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_B");
+        this.appendDummyInput()
+            .appendTitle(" c")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_C");
+        this.appendDummyInput()
+            .appendTitle(" d")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_D");
+        this.appendDummyInput()
+            .appendTitle(" e")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_E");
+        this.appendDummyInput()
+            .appendTitle(" f ")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_F");
+        this.appendDummyInput()
+            .appendTitle(" g")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_G");
+        this.appendDummyInput()
+            .appendTitle(" h")
+            .appendTitle(new Blockly.FieldCheckbox("FALSE"), "MOTOR_H");
+        this.setInputsInline(true);
+        this.setPreviousStatement(true);
+        this.setNextStatement(true);
+        this.setTooltip('');
+    }
+};
+
 Blockly.Language.babuino_motor_cmd = {
   helpUrl: 'http://www.example.com/',
   init: function() {
     this.setColour(290);
     this.appendDummyInput()
-        .appendTitle("motor");
-    this.appendDummyInput()
-        .appendTitle(new Blockly.FieldDropdown([["a", "a"], ["b", "b"], ["ab", "ab"], ["c", "c"], ["ac", "ac"], ["bc", "bc"], ["abc", "abc"], ["d", "d"], ["ad", "ad"], ["bd", "bd"], ["abd", "abd"], ["cd", "cd"], ["acd", "acd"], ["bcd", "bcd"], ["abcd", "abcd"]]), "SEL_MOTOR");
-    this.appendDummyInput()
-        .appendTitle(" ");
+        .appendTitle("motors");
     this.appendDummyInput()
         .appendTitle(new Blockly.FieldDropdown([["On", "on"], ["Off", "off"], ["This way", "thisway"], ["That way", "thatway"], ["Reverse Direction", "rd"], ["Brake", "brake"]]), "SEL_COMMAND");
     this.setInputsInline(true);
@@ -50,20 +83,10 @@ Blockly.Language.babuino_motor_setpower = {
   helpUrl: 'http://www.example.com/',
   init: function() {
     this.setColour(290);
-    this.appendDummyInput()
-        .appendTitle("motor");
-    this.appendDummyInput()
-        .appendTitle(new Blockly.FieldDropdown([["a", "a"], ["b", "b"], ["ab", "ab"], ["c", "c"], ["ac", "ac"], ["bc", "bc"], ["abc", "abc"], ["d", "d"], ["ad", "ad"], ["bd", "bd"], ["abd", "abd"], ["cd", "cd"], ["acd", "acd"], ["bcd", "bcd"], ["abcd", "abcd"]]), "SEL_MOTOR");
 	this.appendValueInput("SEL_POWER")
         .setCheck(Number)
-        .appendTitle("set power to");
-	/*		
-    this.appendDummyInput()
-        .appendTitle("Set Power");
-    this.appendDummyInput()
-        .appendTitle(new Blockly.FieldDropdown([["0", "0"], ["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"], ["7", "7"]]), "SEL_POWER");
-	*/	
-    this.setInputsInline(true);
+        .appendTitle("set motor power to");
+    this.setInputsInline(false);
     this.setPreviousStatement(true, "null");
     this.setNextStatement(true, "null");
     this.setTooltip('');
@@ -74,17 +97,10 @@ Blockly.Language.babuino_motor_onfor = {
   helpUrl: 'http://www.example.com/',
   init: function() {
     this.setColour(290);
-    this.appendDummyInput()
-        .appendTitle("motor");
-    this.appendDummyInput()
-        .appendTitle(new Blockly.FieldDropdown([["a", "a"], ["b", "b"], ["ab", "ab"], ["c", "c"], ["ac", "ac"], ["bc", "bc"], ["abc", "abc"], ["d", "d"], ["ad", "ad"], ["bd", "bd"], ["abd", "abd"], ["cd", "cd"], ["acd", "acd"], ["bcd", "bcd"], ["abcd", "abcd"]]), "SEL_MOTOR");
-    this.appendDummyInput()
-        .appendTitle("on for");
     this.appendValueInput("VAR_PERIOD")
+        .appendTitle("motors on for (10ths s)")
         .setCheck(Number);
-    this.appendDummyInput()
-        .appendTitle("tenths of a second");
-    this.setInputsInline(true);
+    this.setInputsInline(false);
     this.setPreviousStatement(true, "null");
     this.setNextStatement(true, "null");
     this.setTooltip('');

@@ -27,29 +27,40 @@ goog.provide('Blockly.Logo.babuino');
 
 goog.require('Blockly.Logo');
 
+Blockly.Logo.babuino_select_motors = function() {
+    var sel = "";
+    if (this.getTitleValue('MOTOR_A') == 'TRUE')
+        sel += "a";
+    if (this.getTitleValue('MOTOR_B') == 'TRUE')
+        sel += "b";
+    if (this.getTitleValue('MOTOR_C') == 'TRUE')
+        sel += "c";
+    if (this.getTitleValue('MOTOR_D') == 'TRUE')
+        sel += "d";
+    if (this.getTitleValue('MOTOR_E') == 'TRUE')
+        sel += "e";
+    if (this.getTitleValue('MOTOR_F') == 'TRUE')
+        sel += "f";
+    if (this.getTitleValue('MOTOR_G') == 'TRUE')
+        sel += "g";
+    if (this.getTitleValue('MOTOR_H') == 'TRUE')
+        sel += "h";
+    return sel + ", ";
+};
 
 Blockly.Logo.babuino_motor_cmd = function() {
-  var dropdown_sel_motor = this.getTitleValue('SEL_MOTOR');
   var dropdown_sel_command = this.getTitleValue('SEL_COMMAND');
- 
-  var code = dropdown_sel_motor +', ' + dropdown_sel_command + '\n';
-  return code;
+  return dropdown_sel_command + '\n';
 };
 
 Blockly.Logo.babuino_motor_setpower = function() {
   var power = Blockly.Logo.valueToCode(this, 'SEL_POWER', Blockly.Logo.ORDER_ASSIGNMENT);
-  var motor = this.getTitleValue('SEL_MOTOR');
-  
-  var code = motor + ', setpower ' + power + '\n';
-  return code;
+  return "setpower " + power + '\n';
 };
 
 Blockly.Logo.babuino_motor_onfor = function() {
   var value_period = Blockly.Logo.valueToCode(this, 'VAR_PERIOD', Blockly.Logo.ORDER_ASSIGNMENT);
-  var dropdown_sel_motor = this.getTitleValue('SEL_MOTOR');
-  
-  var code = dropdown_sel_motor + ', onfor ' + value_period + '\n';
-  return code;
+  return "onfor " + value_period + '\n';
 };
 
 Blockly.Logo.babuino_switch = function() {
